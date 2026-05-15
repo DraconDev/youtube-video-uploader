@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: zip
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }} -p video-uploader-cli
+
+      - name: Pack binary
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.archive }}" = "tar.gz" ]; then
+            tar czf "dist/video-uploader-${{ matrix.target }}.tar.gz" \
+              -C "target/${{ matrix.target }}/release" video-uploader
+          elif [ "${{ matrix.archive }}" = "zip" ]; then
+            cp "target/${{ matrix.target }}/release/video-uploader.exe" video-uploader.exe 2>/dev/null || true
+            7z a -tzip "dist/video-uploader-${{ matrix.target }}.zip" \
+              "target/${{ matrix.target }}/release/video-uploader"* \
+              -mx9
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-uploader-${{ matrix.target }}
+          path: dist/
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create checksums
+        run: |
+          mkdir -p dist
+          cd dist
+          for f in */*; do
+            sha256sum "$f" >> SHA256SUMS.txt
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

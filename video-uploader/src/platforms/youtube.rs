@@ -55,10 +55,7 @@ pub struct YouTubeUploader {
 }
 
 impl YouTubeUploader {
-    pub fn new(
-        credential_store: Arc<Mutex<CredentialStore>>,
-        passphrase: impl AsRef<str>,
-    ) -> Self {
+    pub fn new(credential_store: Arc<Mutex<CredentialStore>>, passphrase: impl AsRef<str>) -> Self {
         Self {
             client: build_http_client_with_timeout(60),
             credential_store,

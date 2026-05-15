@@ -89,30 +89,28 @@ impl CredentialStore {
             && ciphertext.len() > FORMAT_MAGIC.len()
             && ciphertext[FORMAT_MAGIC.len()] == FORMAT_VERSION_V2
         {
-            let plaintext = String::from_utf8(Self::decrypt_v2(passphrase, ciphertext)?)
-                .map_err(|e| {
+            let plaintext =
+                String::from_utf8(Self::decrypt_v2(passphrase, ciphertext)?).map_err(|e| {
                     UploadError::Encryption(format!(
                         "Credentials file corrupted (invalid UTF-8): {}",
                         e
                     ))
                 })?;
-            let store: CredentialStore = toml::from_str(&plaintext)
-                .map_err(|e| {
-                    UploadError::Encryption(format!("Failed to parse credentials: {e}"))
-                })?;
+            let store: CredentialStore = toml::from_str(&plaintext).map_err(|e| {
+                UploadError::Encryption(format!("Failed to parse credentials: {e}"))
+            })?;
             (store, false)
         } else {
-            let plaintext = String::from_utf8(Self::decrypt_v1(passphrase, ciphertext)?)
-                .map_err(|e| {
+            let plaintext =
+                String::from_utf8(Self::decrypt_v1(passphrase, ciphertext)?).map_err(|e| {
                     UploadError::Encryption(format!(
                         "Credentials file corrupted (invalid UTF-8): {}",
                         e
                     ))
                 })?;
-            let store: CredentialStore = toml::from_str(&plaintext)
-                .map_err(|e| {
-                    UploadError::Encryption(format!("Failed to parse credentials: {e}"))
-                })?;
+            let store: CredentialStore = toml::from_str(&plaintext).map_err(|e| {
+                UploadError::Encryption(format!("Failed to parse credentials: {e}"))
+            })?;
             (store, true)
         };
 

@@ -1,6 +1,5 @@
 use crate::{
-    OdyseeUploader, PlatformUploader, ProgressListener, UploadError,
-    YouTubeUploader,
+    OdyseeUploader, PlatformUploader, ProgressListener, UploadError, YouTubeUploader,
     auth::urls::odysee_default_daemon_url,
     config::CredentialStore,
     upload::{UploadResult, VideoUpload},

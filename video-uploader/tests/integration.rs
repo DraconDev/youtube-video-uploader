@@ -286,7 +286,7 @@ fn test_credential_store_wrong_passphrase_returns_error() {
             token_expires_at: None,
             client_id: None,
             client_secret: None,
-            
+
             daemon_url: None,
         },
     );
@@ -331,7 +331,7 @@ fn test_credential_store_wrong_passphrase_returns_error() {
 #[test]
 fn test_credential_store_empty_passphrase_works() {
     let mut store = CredentialStore::default();
-store.set(
+    store.set(
         "test",
         PlatformCredentials {
             api_key: Some("secret".into()),
@@ -367,7 +367,7 @@ fn test_credential_store_special_chars_in_passphrase() {
     let mut store = CredentialStore::default();
     store.set(
         "test",
-PlatformCredentials {
+        PlatformCredentials {
             api_key: Some("secret".into()),
             refresh_token: None,
             access_token: None,
@@ -597,7 +597,7 @@ fn test_credential_store_wrong_passphrase_v2() {
             token_expires_at: None,
             client_id: None,
             client_secret: None,
-            
+
             daemon_url: None,
         },
     );

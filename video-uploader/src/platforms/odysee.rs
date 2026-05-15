@@ -306,11 +306,14 @@ impl PlatformUploader for OdyseeUploader {
             p.on_progress(0, total_size);
         }
 
-        let result = self.upload_with_retry(video, progress.clone()).await.inspect_err(|e| {
-            if let Some(p) = &progress {
-                p.on_error(e);
-            }
-        })?;
+        let result = self
+            .upload_with_retry(video, progress.clone())
+            .await
+            .inspect_err(|e| {
+                if let Some(p) = &progress {
+                    p.on_error(e);
+                }
+            })?;
 
         if let Some(p) = progress {
             p.on_complete(&result);

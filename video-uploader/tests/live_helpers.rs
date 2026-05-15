@@ -39,9 +39,7 @@ pub async fn delete_video(
     platform: &str,
     platform_id: &str,
 ) -> Result<(), video_uploader::UploadError> {
-    use video_uploader::{
-        OdyseeUploader, YouTubeUploader, config::CredentialStore,
-    };
+    use video_uploader::{OdyseeUploader, YouTubeUploader, config::CredentialStore};
 
     match platform {
         "youtube" => {
