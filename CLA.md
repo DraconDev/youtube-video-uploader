@@ -37,7 +37,7 @@ Except as explicitly stated in this CLA, Your Contributions are provided "AS IS"
 
 ## 6. Governing Law
 
-This CLA shall be governed by the laws of the jurisdiction in which the Project Owner is resident, without regard to conflict of law principles.
+This CLA shall be governed by the laws of England and Wales, without regard to conflict of law principles.
 
 ---
 
