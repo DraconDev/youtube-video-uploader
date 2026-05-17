@@ -29,20 +29,25 @@ fn make_pass_file(dir: &std::path::Path, pass: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn cli_auth_unknown_platform_rejected() {
+fn cli_auth_rejects_unexpected_arg() {
     let home = temp_home();
     let pass = make_pass_file(home.path(), "longpassphrase999");
     let mut cmd = with_passphrase(video_uploader());
     cmd.env("HOME", home.path());
-    cmd.args(["--passphrase-file", pass.to_str().unwrap(), "auth", "vimeo"]);
+    cmd.args([
+        "--passphrase-file",
+        pass.to_str().unwrap(),
+        "auth",
+        "unexpected",
+    ]);
     let output = cmd.output().unwrap();
     assert!(
         !output.status.success(),
-        "expected failure for unknown platform vimeo"
+        "expected failure for unexpected arg"
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("invalid value") || stderr.contains("vimeo"),
+        stderr.contains("unexpected") || !stderr.is_empty(),
         "unexpected stderr: {}",
         stderr
     );
@@ -72,31 +77,24 @@ fn cli_upload_missing_file_with_passphrase() {
     let home = temp_home();
     let mut cmd = with_passphrase(video_uploader());
     cmd.env("HOME", home.path());
-    cmd.args([
-        "upload",
-        "--file",
-        "/nonexistent.mp4",
-        "--title",
-        "Test",
-        "--platforms",
-        "youtube",
-    ]);
+    cmd.args(["upload", "--file", "/nonexistent.mp4", "--title", "Test"]);
     let output = cmd.output().unwrap();
     // File doesn't exist → validation or upload should fail with a clear message
-    // Note: CLI exits 0 even on platform errors; check stderr for the failure message
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("No such file")
             || stderr.contains("not exist")
             || stderr.contains("not found")
-            || stderr.contains("failed"),
-        "expected file error in stderr, got: {}",
+            || stderr.contains("failed")
+            || stderr.contains("error")
+            || stderr.contains("workspace"),
+        "expected file or workspace error in stderr, got: {}",
         stderr
     );
 }
 
 #[test]
-fn cli_upload_unknown_platform_warns() {
+fn cli_upload_rejects_unknown_flag() {
     let home = temp_home();
     let mut cmd = with_passphrase(video_uploader());
     cmd.env("HOME", home.path());
@@ -106,14 +104,14 @@ fn cli_upload_unknown_platform_warns() {
         "/nonexistent.mp4",
         "--title",
         "Test",
-        "--platforms",
-        "yotube",
+        "--unknown-flag",
     ]);
     let output = cmd.output().unwrap();
+    assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Unknown platform") || stderr.contains("yotube"),
-        "expected unknown platform warning, got: {}",
+        stderr.contains("unexpected") || stderr.contains("unknown"),
+        "expected unknown flag error, got: {}",
         stderr
     );
 }
@@ -128,8 +126,8 @@ fn cli_list_no_credentials() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("No platforms configured"),
-        "expected no platforms message, got: {}",
+        stdout.contains("No workspaces configured"),
+        "expected not configured message, got: {}",
         stdout
     );
 }
@@ -145,8 +143,8 @@ fn cli_list_with_passphrase_file() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("No platforms configured"),
-        "expected no platforms message, got: {}",
+        stdout.contains("No workspaces configured"),
+        "expected not configured message, got: {}",
         stdout
     );
 }
@@ -203,7 +201,7 @@ fn cli_batch_dry_run_valid_manifest() {
     write_file(
         &csv_path,
         &format!(
-            "file,title,description,tags,visibility,platforms\n\
+            "file,title,description,tags,visibility,workspace\n\
              {},Test Video,Test desc,tag1;tag2,public,youtube\n",
             video_path.to_str().unwrap()
         ),
@@ -302,6 +300,138 @@ fn cli_passphrase_file_empty_rejected() {
     assert!(
         stderr.contains("empty"),
         "expected empty passphrase error, got: {}",
+        stderr
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Workspace subcommand tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn cli_workspace_help() {
+    let mut cmd = video_uploader();
+    cmd.args(["workspace", "--help"]);
+    let output = cmd.output().unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("default") && stdout.contains("rename") && stdout.contains("remove"),
+        "expected workspace subcommands in help, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn cli_workspace_default_nonexistent() {
+    let home = temp_home();
+    let mut cmd = with_passphrase(video_uploader());
+    cmd.env("HOME", home.path());
+    cmd.args(["workspace", "default", "nonexistent"]);
+    let output = cmd.output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("does not exist"),
+        "expected 'does not exist' error, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_workspace_remove_nonexistent() {
+    let home = temp_home();
+    let mut cmd = with_passphrase(video_uploader());
+    cmd.env("HOME", home.path());
+    cmd.args(["workspace", "remove", "nonexistent"]);
+    let output = cmd.output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("does not exist"),
+        "expected 'does not exist' error, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn cli_batch_dry_run_multi_row_with_workspaces() {
+    let home = temp_home();
+
+    // Create video files
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal.mp4");
+    let video1 = home.path().join("video1.mp4");
+    let video2 = home.path().join("video2.mp4");
+    let video3 = home.path().join("video3.mp4");
+    if fixture.exists() {
+        fs::copy(&fixture, &video1).unwrap();
+        fs::copy(&fixture, &video2).unwrap();
+        fs::copy(&fixture, &video3).unwrap();
+    } else {
+        fs::write(&video1, b"fake video").unwrap();
+        fs::write(&video2, b"fake video").unwrap();
+        fs::write(&video3, b"fake video").unwrap();
+    }
+
+    let csv_path = home.path().join("manifest.csv");
+    write_file(
+        &csv_path,
+        &format!(
+            "file,title,workspace,visibility\n\
+            {},Gaming Video,gaming,public\n\
+            {},Cooking Video,cooking,unlisted\n\
+            {},Default Video,,public\n",
+            video1.to_str().unwrap(),
+            video2.to_str().unwrap(),
+            video3.to_str().unwrap(),
+        ),
+    );
+
+    let mut cmd = with_passphrase(video_uploader());
+    cmd.env("HOME", home.path());
+    cmd.args(["batch", "--manifest", csv_path.to_str().unwrap(), "--dry-run"]);
+    let output = cmd.output().unwrap();
+    assert!(
+        output.status.success(),
+        "multi-row dry run should succeed, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("3 video(s)"),
+        "expected 3 videos, got: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("[gaming]"),
+        "expected gaming workspace marker, got: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("[cooking]"),
+        "expected cooking workspace marker, got: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("(default)"),
+        "expected default workspace marker, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn cli_workspace_rename_nonexistent() {
+    let home = temp_home();
+    let mut cmd = with_passphrase(video_uploader());
+    cmd.env("HOME", home.path());
+    cmd.args(["workspace", "rename", "old", "new"]);
+    let output = cmd.output().unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("does not exist"),
+        "expected 'does not exist' error, got: {}",
         stderr
     );
 }

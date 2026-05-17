@@ -13,8 +13,14 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
           - os: macos-latest
             target: aarch64-apple-darwin
+            archive: zip
+          - os: macos-13
+            target: x86_64-apple-darwin
             archive: zip
           - os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -29,8 +35,29 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cross for ARM targets
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: cargo install cross --locked
+
       - name: Build release
-        run: cargo build --release --target ${{ matrix.target }} -p video-uploader-cli
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            cross build --release --target ${{ matrix.target }} -p video-uploader-cli
+          else
+            cargo build --release --target ${{ matrix.target }} -p video-uploader-cli
+          fi
+
+      - name: Smoke test
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          binary="target/${{ matrix.target }}/release/video-uploader"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            binary="${binary}.exe"
+          fi
+          "$binary" --help
 
       - name: Pack binary
         shell: bash
@@ -40,9 +67,13 @@ jobs:
             tar czf "dist/video-uploader-${{ matrix.target }}.tar.gz" \
               -C "target/${{ matrix.target }}/release" video-uploader
           elif [ "${{ matrix.archive }}" = "zip" ]; then
-            cp "target/${{ matrix.target }}/release/video-uploader.exe" video-uploader.exe 2>/dev/null || true
+            binary="target/${{ matrix.target }}/release/video-uploader.exe"
+            if [ ! -f "$binary" ]; then
+              echo "ERROR: Expected binary not found at $binary"
+              exit 1
+            fi
             7z a -tzip "dist/video-uploader-${{ matrix.target }}.zip" \
-              "target/${{ matrix.target }}/release/video-uploader"* \
+              "$binary" \
               -mx9
           fi
 

@@ -13,14 +13,7 @@ pub fn build_http_client_with_timeout(secs: u64) -> reqwest::Client {
         .timeout(Duration::from_secs(secs))
         .redirect(reqwest::redirect::Policy::none())
         .build()
-        .unwrap_or_else(|e| {
-            tracing::warn!(
-                "HTTP client builder failed ({}), falling back to default client \
-                (no timeout, follows redirects). This may cause unexpected behavior.",
-                e
-            );
-            reqwest::Client::new()
-        })
+        .expect("failed to build HTTP client — this should never happen in normal operation")
 }
 
 pub async fn retry<F, Fut, T>(operation: F, max_retries: u32) -> Result<T, UploadError>
@@ -55,7 +48,9 @@ where
         }
     }
 
-    Err(last_error.unwrap_or_else(|| panic!("retry called with max_retries=0")))
+    Err(last_error.unwrap_or_else(|| {
+        UploadError::NoAttempts
+    }))
 }
 
 pub fn is_private_ip(host: &str) -> bool {

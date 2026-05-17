@@ -1,16 +1,17 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::sync::Semaphore;
 use video_uploader::{
-    CredentialStore, StderrProgressListener, UploaderRegistry, VideoUpload,
+    CredentialStore, StderrProgressListener, VideoUpload, YouTubeUploader, Zeroizing,
     auth::{device_code, now_secs},
     config::PlatformCredentials,
-    validate_daemon_url,
 };
 
 #[derive(Parser)]
 #[command(name = "video-uploader")]
-#[command(about = "Upload videos to YouTube and Odysee")]
+#[command(about = "Upload videos to YouTube")]
 struct Cli {
     #[arg(short, long)]
     passphrase: Option<String>,
@@ -21,6 +22,13 @@ struct Cli {
     )]
     passphrase_file: Option<String>,
 
+    #[arg(
+        short,
+        long,
+        help = "Target workspace (defaults to the configured default workspace)"
+    )]
+    workspace: Option<String>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -28,9 +36,6 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Auth {
-        #[arg(value_enum, default_value = "youtube")]
-        platform: PlatformArg,
-
         #[arg(long)]
         client_id: Option<String>,
 
@@ -54,26 +59,40 @@ enum Commands {
         visibility: VisibilityArg,
 
         #[arg(long)]
-        platforms: Option<String>,
+        category: Option<String>,
     },
     List,
     Batch {
         #[arg(
             long,
-            help = "Path to CSV manifest (columns: file,title,description,tags,visibility,platforms)"
+            help = "Path to CSV manifest (columns: file,title,description,tags,visibility,workspace)"
         )]
         manifest: String,
 
         #[arg(long, help = "Validate without uploading")]
         dry_run: bool,
+
+        #[arg(long, default_value = "4", help = "Number of concurrent uploads")]
+        concurrency: usize,
+    },
+    Workspace {
+        #[command(subcommand)]
+        action: WorkspaceAction,
     },
 }
 
-#[derive(clap::ValueEnum, Clone, Default)]
-enum PlatformArg {
-    #[default]
-    Youtube,
-    Odysee,
+#[derive(Subcommand)]
+enum WorkspaceAction {
+    Default {
+        name: String,
+    },
+    Rename {
+        old: String,
+        new: String,
+    },
+    Remove {
+        name: String,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Default, Debug)]
@@ -94,23 +113,14 @@ impl From<VisibilityArg> for video_uploader::Visibility {
     }
 }
 
-impl std::fmt::Display for PlatformArg {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PlatformArg::Youtube => write!(f, "youtube"),
-            PlatformArg::Odysee => write!(f, "odysee"),
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct BatchEntry {
     file: String,
     title: String,
     description: Option<String>,
     tags: Vec<String>,
     visibility: VisibilityArg,
-    platforms: Vec<String>,
+    workspace: Option<String>,
 }
 
 fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
@@ -183,14 +193,7 @@ fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
             Some("unlisted") => VisibilityArg::Unlisted,
             _ => VisibilityArg::Public,
         };
-        let platforms = get("platforms")
-            .map(|p| {
-                p.split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect()
-            })
-            .unwrap_or_else(|| vec!["youtube".to_string()]);
+        let workspace = get("workspace");
 
         entries.push(BatchEntry {
             file: canonical_file.to_string_lossy().to_string(),
@@ -198,7 +201,7 @@ fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
             description,
             tags,
             visibility,
-            platforms,
+            workspace,
         });
     }
 
@@ -222,7 +225,7 @@ fn get_env_passphrase() -> Result<String, anyhow::Error> {
 fn get_passphrase(
     cli_passphrase: Option<&str>,
     passphrase_file: Option<&str>,
-) -> Result<String, anyhow::Error> {
+) -> Result<Zeroizing<String>, anyhow::Error> {
     if let Some(file) = passphrase_file {
         let content =
             std::fs::read_to_string(file).map_err(|e| anyhow::anyhow!("passphrase file: {}", e))?;
@@ -237,17 +240,17 @@ fn get_passphrase(
                 file
             ));
         }
-        return Ok(trimmed.to_string());
+        return Ok(Zeroizing::new(trimmed.to_string()));
     }
 
     let pass = if let Some(p) = cli_passphrase {
         if !p.is_empty() {
-            p.to_string()
+            Zeroizing::new(p.to_string())
         } else {
-            get_env_passphrase()?
+            Zeroizing::new(get_env_passphrase()?)
         }
     } else {
-        get_env_passphrase()?
+        Zeroizing::new(get_env_passphrase()?)
     };
 
     if pass.len() < 8 {
@@ -260,8 +263,41 @@ fn get_passphrase(
     Ok(pass)
 }
 
+fn resolve_workspace(
+    store: &CredentialStore,
+    explicit: Option<&str>,
+) -> Result<String, anyhow::Error> {
+    if let Some(name) = explicit {
+        if store.get(name).is_none() {
+            return Err(anyhow::anyhow!(
+                "Workspace '{}' not found. Run 'video-uploader workspace list' to see available workspaces.",
+                name
+            ));
+        }
+        return Ok(name.to_string());
+    }
+
+    if let Some(default) = store.default_workspace()
+        && store.get(default).is_some()
+    {
+        return Ok(default.to_string());
+    }
+
+    let names: Vec<_> = store.workspaces().collect();
+    if names.len() == 1 {
+        return Ok(names[0].clone());
+    }
+
+    Err(anyhow::anyhow!(
+        "No workspace specified and no default workspace configured. Use --workspace or set a default with 'video-uploader workspace default <name>'."
+    ))
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load .env from CWD or project root (silent no-op if missing)
+    let _ = dotenvy::dotenv();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -277,85 +313,83 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Auth {
-            platform,
             client_id,
             client_secret,
         } => {
             let mut store = CredentialStore::load(&passphrase)?;
+            let client_id = client_id
+                .or_else(|| std::env::var("YOUTUBE_CLIENT_ID").ok())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "YOUTUBE_CLIENT_ID not set. Pass --client-id or set the env var."
+                    )
+                })?;
+            let client_secret = client_secret
+                .or_else(|| std::env::var("YOUTUBE_CLIENT_SECRET").ok())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "YOUTUBE_CLIENT_SECRET not set. Pass --client-secret or set the env var."
+                    )
+                })?;
 
-            match platform {
-                PlatformArg::Youtube => {
-                    let client_id = client_id
-                        .or_else(|| std::env::var("YOUTUBE_CLIENT_ID").ok())
-                        .ok_or_else(|| {
-                            anyhow::anyhow!(
-                                "YOUTUBE_CLIENT_ID not set. Pass --client-id or set the env var."
-                            )
-                        })?;
-                    let client_secret = client_secret.or_else(|| std::env::var("YOUTUBE_CLIENT_SECRET").ok())
-                        .ok_or_else(|| anyhow::anyhow!("YOUTUBE_CLIENT_SECRET not set. Pass --client-secret or set the env var."))?;
+            let workspace = cli
+                .workspace
+                .clone()
+                .or_else(|| store.default_workspace().map(String::from))
+                .unwrap_or_else(|| "youtube".to_string());
 
-                    tracing::info!("Starting YouTube device code flow...");
-                    tracing::info!("YouTube OAuth2 requires a one-time setup.");
-                    tracing::info!(
-                        "Get your credentials from: https://console.cloud.google.com/apis/credentials"
-                    );
+            tracing::info!("Starting YouTube authorization for workspace '{}'...", workspace);
+            tracing::info!("YouTube OAuth2 requires a one-time setup.");
+            tracing::info!(
+                "Get your credentials from: https://console.cloud.google.com/apis/credentials"
+            );
 
-                    let token =
-                        device_code::run_device_code_flow(&client_id, &client_secret, |resp| {
-                            println!();
-                            println!("===========================================");
-                            println!("  IMPORTANT: One-time YouTube authorization");
-                            println!("===========================================");
-                            println!();
-                            println!("  1. Open this URL on any device:");
-                            println!();
-                            println!("     {}", resp.verification_url);
-                            println!();
-                            println!("  2. Enter this code: {}", resp.user_code);
-                            println!();
-                            println!("  Waiting for authorization... (Ctrl+C to cancel)");
-                            println!();
-                        })
-                        .await?;
-
-                    let creds = PlatformCredentials {
-                        refresh_token: token.refresh_token,
-                        access_token: Some(token.access_token),
-                        token_expires_at: Some(now_secs() + token.expires_in),
-                        client_id: Some(client_id),
-                        client_secret: Some(client_secret),
-                        api_key: None,
-                        daemon_url: None,
-                    };
-
-                    store.set("youtube", creds);
-                    store.save(&passphrase)?;
-                    println!("\nYouTube credentials saved successfully!");
+            // Try device code flow first (works with "TVs and Limited Input" client type),
+            // fall back to authorization code flow (works with "Web" and "Installed" client types)
+            let token = match device_code::run_device_code_flow(&client_id, &client_secret, |resp| {
+                println!();
+                println!("===========================================");
+                println!("  IMPORTANT: One-time YouTube authorization");
+                println!("===========================================");
+                println!();
+                println!("  1. Open this URL on any device:");
+                println!();
+                println!("     {}", resp.verification_url);
+                println!();
+                println!("  2. Enter this code: {}", resp.user_code);
+                println!();
+                println!("  Waiting for authorization... (Ctrl+C to cancel)");
+                println!();
+            })
+            .await
+            {
+                Ok(token) => token,
+                Err(e) => {
+                    let err_msg = e.to_string();
+                    if err_msg.contains("invalid_client") || err_msg.contains("TVs and Limited Input") {
+                        tracing::info!("Device code flow not supported for this client type, switching to browser auth...");
+                        video_uploader::auth::auth_code::auth_code_flow(&client_id, &client_secret).await?
+                    } else {
+                        return Err(anyhow::anyhow!("Auth failed: {e}"));
+                    }
                 }
-                PlatformArg::Odysee => {
-                    let daemon_url = std::env::var("ODYSEE_DAEMON_URL")
-                        .unwrap_or_else(|_| "http://localhost:5279".to_string());
-                    validate_daemon_url(&daemon_url)
-                        .map_err(|e| anyhow::anyhow!("Invalid Odysee daemon URL: {e}"))?;
-                    let creds = PlatformCredentials {
-                        daemon_url: Some(daemon_url.clone()),
-                        api_key: None,
-                        refresh_token: None,
-                        access_token: None,
-                        token_expires_at: None,
-                        client_id: None,
-                        client_secret: None,
-                    };
-                    store.set("odysee", creds);
-                    store.save(&passphrase)?;
-                    println!("Odysee credentials saved successfully!");
-                    println!(
-                        "Note: Odysee requires lbrynet daemon running at {}",
-                        daemon_url
-                    );
-                }
+            };
+
+            let creds = PlatformCredentials {
+                refresh_token: token.refresh_token.map(Zeroizing::new),
+                access_token: Some(Zeroizing::new(token.access_token)),
+                token_expires_at: Some(now_secs() + token.expires_in),
+                client_id: Some(Zeroizing::new(client_id)),
+                client_secret: Some(Zeroizing::new(client_secret)),
+                api_key: None,
+            };
+
+            store.set(&workspace, creds);
+            if store.default_workspace().is_none() {
+                store.set_default(&workspace);
             }
+            store.save(&passphrase)?;
+            println!("\nCredentials saved successfully for workspace '{}'!", workspace);
         }
 
         Commands::Upload {
@@ -364,111 +398,192 @@ async fn main() -> Result<()> {
             description,
             tags,
             visibility,
-            platforms,
+            category,
         } => {
-            let registry = UploaderRegistry::load(&passphrase)?;
+            let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
+            let workspace = resolve_workspace(&*store.lock().await, cli.workspace.as_deref())?;
+            let youtube = YouTubeUploader::new(store, &passphrase, &workspace);
             let file = expand_tilde(&file);
-            let video = VideoUpload::new(&file, &title)
-                .description(description.unwrap_or_default())
-                .tags(
+            let mut video = VideoUpload::new(&file, &title)
+                .with_description(description.unwrap_or_default())
+                .with_tags(
                     tags.map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
                         .unwrap_or_default(),
                 )
-                .visibility(visibility.into());
+                .with_visibility(visibility.into());
 
-            let platform_list: Vec<String> = platforms
-                .as_ref()
-                .map(|p| p.split(',').map(|s| s.trim().to_string()).collect())
-                .unwrap_or_else(|| vec!["youtube".to_string()]);
-
-            const KNOWN_PLATFORMS: [&str; 2] = ["youtube", "odysee"];
-            for platform in &platform_list {
-                if !KNOWN_PLATFORMS.contains(&platform.as_str()) {
-                    tracing::warn!(
-                        "Unknown platform '{}'. Valid platforms: {}",
-                        platform,
-                        KNOWN_PLATFORMS.join(", ")
-                    );
-                }
+            if let Some(cat) = category {
+                video = video.with_category(&cat);
             }
 
             let progress = Arc::new(StderrProgressListener);
-            let mut results = Vec::new();
-
-            for platform in platform_list {
-                match registry
-                    .upload_to(&platform, &video, Some(progress.clone()))
-                    .await
-                {
-                    Ok(r) => results.push(format!("{}: {} ({})", r.platform, r.url, r.platform_id)),
-                    Err(e) => eprintln!("{platform} failed: {e}"),
+            match youtube.upload(&video, Some(progress.clone())).await {
+                Ok(r) => {
+                    println!("\n--- Result ---");
+                    println!("  YouTube: {} ({})", r.url, r.video_id);
                 }
-            }
-
-            println!("\n--- Results ---");
-            for r in results {
-                println!("  {r}");
+                Err(e) => {
+                    return Err(anyhow::anyhow!("Upload failed: {e}"));
+                }
             }
         }
 
-        Commands::Batch { manifest, dry_run } => {
+        Commands::Batch {
+            manifest,
+            dry_run,
+            concurrency,
+        } => {
             let entries = parse_csv_manifest(&manifest)?;
             println!("Batch manifest loaded: {} video(s)", entries.len());
 
             if dry_run {
                 println!("\n--- Dry run ---");
                 for (i, entry) in entries.iter().enumerate() {
-                    println!(
-                        "  {}. {} → {} (platforms: {})",
-                        i + 1,
-                        entry.file,
-                        entry.title,
-                        entry.platforms.join(", ")
-                    );
+                    let ws = entry.workspace.as_deref().unwrap_or("(default)");
+                    println!("  {}. [{}] {} → {}", i + 1, ws, entry.file, entry.title,);
                 }
                 return Ok(());
             }
 
-            let store = CredentialStore::load(&passphrase)?;
-            let registry = UploaderRegistry::new(store, &passphrase);
-            let progress = Arc::new(StderrProgressListener);
-
+            // Pre-validate all entries before uploading
+            let mut validation_errors = Vec::new();
             for (i, entry) in entries.iter().enumerate() {
-                println!(
-                    "\n[{} / {}] Uploading: {}",
-                    i + 1,
-                    entries.len(),
-                    entry.title
-                );
-
                 let video = VideoUpload::new(expand_tilde(&entry.file), &entry.title)
-                    .description(entry.description.clone().unwrap_or_default())
-                    .tags(entry.tags.clone())
-                    .visibility(entry.visibility.clone().into());
-
-                for platform in &entry.platforms {
-                    let result = registry
-                        .upload_to(platform, &video, Some(progress.clone()))
-                        .await;
-                    match result {
-                        Ok(r) => println!("  {}: {}", platform, r.url),
-                        Err(e) => eprintln!("  {} failed: {}", platform, e),
-                    }
+                    .with_description(entry.description.clone().unwrap_or_default())
+                    .with_tags(entry.tags.clone())
+                    .with_visibility(entry.visibility.clone().into());
+                if let Err(e) = video_uploader::validation::validate(&video).await {
+                    validation_errors.push(format!("Row {}: {}", i + 1, e));
                 }
             }
+            if !validation_errors.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "Validation failed:\n{}",
+                    validation_errors.join("\n")
+                ));
+            }
 
+            let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
+            let progress = Arc::new(StderrProgressListener);
+            let semaphore = Arc::new(Semaphore::new(concurrency));
+            let total = entries.len();
+            let mut handles = Vec::with_capacity(total);
+
+            for (i, entry) in entries.iter().enumerate() {
+                let entry = entry.clone();
+                let store = Arc::clone(&store);
+                let passphrase = passphrase.clone();
+                let progress = Arc::clone(&progress);
+                let semaphore = Arc::clone(&semaphore);
+
+                handles.push(tokio::spawn(async move {
+                    let _permit = semaphore.acquire().await.unwrap();
+                    let ws_display = entry.workspace.as_deref().unwrap_or("default");
+                    println!("\n[{} / {}] [{}] Uploading: {}", i + 1, total, ws_display, entry.title);
+
+                    let store_guard = store.lock().await;
+                    let ws = match resolve_workspace(&store_guard, entry.workspace.as_deref()) {
+                        Ok(w) => w,
+                        Err(e) => {
+                            eprintln!("  Workspace error: {e}");
+                            return 1u32;
+                        }
+                    };
+                    drop(store_guard);
+
+                    let video = VideoUpload::new(expand_tilde(&entry.file), &entry.title)
+                        .with_description(entry.description.clone().unwrap_or_default())
+                        .with_tags(entry.tags.clone())
+                        .with_visibility(entry.visibility.clone().into());
+
+                    let youtube = YouTubeUploader::new(store, &passphrase, &ws);
+                    match youtube.upload(&video, Some(progress.clone())).await {
+                        Ok(r) => {
+                            println!("  YouTube: {} ({})", r.url, r.video_id);
+                            0u32
+                        }
+                        Err(e) => {
+                            eprintln!("  YouTube failed: {e}");
+                            1u32
+                        }
+                    }
+                }));
+            }
+
+            let mut failures = 0u32;
+            for handle in handles {
+                failures += handle
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Task join: {e}"))?;
+            }
+
+            if failures > 0 {
+                return Err(anyhow::anyhow!(
+                    "Batch completed with {} failure(s) out of {} video(s)",
+                    failures,
+                    entries.len()
+                ));
+            }
             println!("\nBatch complete. {} video(s) processed.", entries.len());
         }
 
         Commands::List => {
             let store = CredentialStore::load(&passphrase)?;
-            let platforms: Vec<_> = store.platforms().collect();
-            if platforms.is_empty() {
-                println!("No platforms configured. Run: video-uploader auth --platform <name>");
+            let workspaces: Vec<_> = store.workspaces().collect();
+            if workspaces.is_empty() {
+                println!("No workspaces configured. Run: video-uploader auth");
             } else {
-                println!("Configured platforms:");
-                for p in platforms {
-                    println!("  - {p}");
+                println!("Workspaces:");
+                let default = store.default_workspace();
+                for w in workspaces {
+                    let marker = if default == Some(w) { " (default)" } else { "" };
+                    println!("  - {}{}", w, marker);
+                }
+            }
+        }
+
+        Commands::Workspace { action } => {
+            let mut store = CredentialStore::load(&passphrase)?;
+            match action {
+                WorkspaceAction::Default { name } => {
+                    if store.get(&name).is_none() {
+                        return Err(anyhow::anyhow!(
+                            "Workspace '{}' does not exist. Run 'video-uploader list' to see available workspaces.",
+                            name
+                        ));
+                    }
+                    store.set_default(&name);
+                    store.save(&passphrase)?;
+                    println!("Default workspace set to '{}'", name);
+                }
+                WorkspaceAction::Rename { old, new } => {
+                    if store.get(&old).is_none() {
+                        return Err(anyhow::anyhow!(
+                            "Workspace '{}' does not exist.",
+                            old
+                        ));
+                    }
+                    let creds = store.remove(&old).expect("checked above");
+                    store.set(&new, creds);
+                    if store.default_workspace() == Some(&old) {
+                        store.set_default(&new);
+                    }
+                    store.save(&passphrase)?;
+                    println!("Workspace '{}' renamed to '{}'", old, new);
+                }
+                WorkspaceAction::Remove { name } => {
+                    if store.get(&name).is_none() {
+                        return Err(anyhow::anyhow!(
+                            "Workspace '{}' does not exist.",
+                            name
+                        ));
+                    }
+                    store.remove(&name);
+                    if store.default_workspace() == Some(&name) {
+                        store.clear_default();
+                    }
+                    store.save(&passphrase)?;
+                    println!("Workspace '{}' removed", name);
                 }
             }
         }

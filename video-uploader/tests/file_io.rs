@@ -48,7 +48,7 @@ async fn test_file_extension_detection() {
         fs::write(&file_path, b"fake video data").unwrap();
         let video = VideoUpload::new(&file_path, "Test");
         assert!(
-            video.file_path.exists(),
+            video.file_path().exists(),
             "file with .{} extension should exist",
             ext
         );
@@ -65,7 +65,7 @@ async fn test_zero_byte_file_validation() {
     fs::write(&file_path, b"").unwrap();
 
     let video = VideoUpload::new(&file_path, "Test");
-    let result = validate(&video, "youtube").await;
+    let result = validate(&video).await;
 
     assert!(result.is_err(), "zero-byte file should fail validation");
     let err = result.unwrap_err();
@@ -87,10 +87,10 @@ async fn test_unicode_filename_path() {
     fs::write(&file_path, b"video content").unwrap();
 
     let video = VideoUpload::new(&file_path, "Test Unicode");
-    assert!(video.file_path.exists());
+    assert!(video.file_path().exists());
 
     // Verify it's readable
-    let content = tokio::fs::read(&video.file_path).await.unwrap();
+    let content = tokio::fs::read(&video.file_path()).await.unwrap();
     assert_eq!(content, b"video content");
 }
 
@@ -105,8 +105,8 @@ async fn test_file_concurrent_read_same_file() {
     let video1 = VideoUpload::new(&file_path, "Reader 1");
     let video2 = VideoUpload::new(&file_path, "Reader 2");
 
-    let len1 = tokio::fs::metadata(&video1.file_path).await.unwrap().len();
-    let len2 = tokio::fs::metadata(&video2.file_path).await.unwrap().len();
+    let len1 = tokio::fs::metadata(video1.file_path()).await.unwrap().len();
+    let len2 = tokio::fs::metadata(video2.file_path()).await.unwrap().len();
 
     assert_eq!(len1, 4096);
     assert_eq!(len2, 4096);
@@ -121,7 +121,7 @@ async fn test_file_path_with_tilde_expansion() {
 
     use video_uploader::upload::VideoUpload;
     let video = VideoUpload::new(&video_path, "Tilde Test");
-    assert!(video.file_path.exists());
+    assert!(video.file_path().exists());
 }
 
 #[tokio::test]

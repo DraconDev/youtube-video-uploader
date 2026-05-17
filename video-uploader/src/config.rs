@@ -8,7 +8,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
+use zeroize::Zeroizing;
 
 const CREDENTIALS_FILE: &str = "video-uploader/credentials.enc";
 pub const NONCE_SIZE: usize = 12;
@@ -19,18 +20,53 @@ pub const MIN_PASSPHRASE_LEN: usize = 8;
 pub const FORMAT_MAGIC: &[u8] = b"VU";
 pub const FORMAT_VERSION_V2: u8 = 0x02;
 
-/// Per-platform credential storage.
-#[derive(Clone, Serialize, Deserialize, Default, Zeroize, ZeroizeOnDrop)]
+/// Per-workspace credential storage.
+///
+/// Each workspace holds a set of OAuth2 credentials for a single YouTube account.
+/// Workspaces are stored in a single AES-256-GCM encrypted file (`credentials.enc`)
+/// protected by a user passphrase with PBKDF2 key derivation (100K iterations).
+///
+/// # Workspace format (v0.2+)
+///
+/// ```toml
+/// default_workspace = "youtube"
+///
+/// [workspaces.youtube]
+/// refresh_token = "..."
+/// client_id = "..."
+/// ```
+///
+/// Old flat format (`[youtube]` at top level) is auto-migrated on load.
+#[derive(Serialize, Deserialize, Default, Zeroize)]
 pub struct PlatformCredentials {
-    pub api_key: Option<String>,
-    pub refresh_token: Option<String>,
-    pub access_token: Option<String>,
+    pub api_key: Option<Zeroizing<String>>,
+    pub refresh_token: Option<Zeroizing<String>>,
+    pub access_token: Option<Zeroizing<String>>,
     #[zeroize(skip)]
     pub token_expires_at: Option<u64>,
-    pub client_id: Option<String>,
-    pub client_secret: Option<String>,
-    #[zeroize(skip)]
-    pub daemon_url: Option<String>,
+    pub client_id: Option<Zeroizing<String>>,
+    pub client_secret: Option<Zeroizing<String>>,
+}
+
+impl PlatformCredentials {
+    /// Create credentials with the given OAuth2 fields.
+    ///
+    /// All string fields are wrapped in `Zeroizing<String>` for secure memory handling.
+    pub fn new(
+        refresh_token: Option<String>,
+        access_token: Option<String>,
+        client_id: Option<String>,
+        client_secret: Option<String>,
+    ) -> Self {
+        Self {
+            api_key: None,
+            refresh_token: refresh_token.map(Zeroizing::new),
+            access_token: access_token.map(Zeroizing::new),
+            token_expires_at: None,
+            client_id: client_id.map(Zeroizing::new),
+            client_secret: client_secret.map(Zeroizing::new),
+        }
+    }
 }
 
 impl std::fmt::Debug for PlatformCredentials {
@@ -51,27 +87,82 @@ impl std::fmt::Debug for PlatformCredentials {
                 "client_secret",
                 &self.client_secret.as_ref().map(|_| "[REDACTED]"),
             )
-            .field("daemon_url", &self.daemon_url)
             .finish()
     }
 }
 
+impl Drop for PlatformCredentials {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
 /// The encrypted on-disk credential store.
-#[derive(Clone, Serialize, Deserialize, Default)]
+///
+/// Workspaces are named sets of credentials (e.g. `"youtube"`, `"cooking-channel"`).
+/// One workspace may be marked as the default.
+///
+/// # Usage
+///
+/// ```no_run
+/// use video_uploader::CredentialStore;
+///
+/// let store = CredentialStore::load("my-passphrase").unwrap();
+/// let creds = store.get("youtube").expect("youtube workspace not found");
+/// println!("Refresh token: {:?}", creds.refresh_token);
+/// ```
+///
+/// # Multi-channel setup
+///
+/// ```no_run
+/// use video_uploader::config::PlatformCredentials;
+/// use video_uploader::CredentialStore;
+///
+/// let mut store = CredentialStore::default();
+/// store.set("gaming", PlatformCredentials::default());
+/// store.set_default("gaming");
+/// store.save("my-passphrase").unwrap();
+/// ```
+#[derive(Serialize, Deserialize, Default)]
 pub struct CredentialStore {
-    #[serde(flatten)]
-    platforms: HashMap<String, PlatformCredentials>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    default_workspace: Option<String>,
+    #[serde(default)]
+    workspaces: HashMap<String, PlatformCredentials>,
 }
 
 impl std::fmt::Debug for CredentialStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CredentialStore")
-            .field("platforms", &self.platforms.keys().collect::<Vec<_>>())
+            .field("default_workspace", &self.default_workspace)
+            .field("workspaces", &self.workspaces.keys().collect::<Vec<_>>())
             .finish()
     }
 }
 
+impl Zeroize for CredentialStore {
+    fn zeroize(&mut self) {
+        // Clear drops each PlatformCredentials, which zeroizes via Drop
+        self.workspaces.clear();
+        self.default_workspace.zeroize();
+    }
+}
+
+impl Drop for CredentialStore {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
 impl CredentialStore {
+    #[cfg(feature = "test-utils")]
+    pub fn decrypt_store_for_testing(
+        passphrase: &str,
+        ciphertext: &[u8],
+    ) -> Result<(Self, bool), UploadError> {
+        Self::decrypt_store(passphrase, ciphertext)
+    }
+
     fn decrypt_store(passphrase: &str, ciphertext: &[u8]) -> Result<(Self, bool), UploadError> {
         if passphrase.len() < MIN_PASSPHRASE_LEN {
             return Err(UploadError::Encryption(format!(
@@ -85,36 +176,81 @@ impl CredentialStore {
             ));
         }
 
-        let (store, needs_migration) = if ciphertext.starts_with(FORMAT_MAGIC)
-            && ciphertext.len() > FORMAT_MAGIC.len()
-            && ciphertext[FORMAT_MAGIC.len()] == FORMAT_VERSION_V2
-        {
-            let plaintext =
-                String::from_utf8(Self::decrypt_v2(passphrase, ciphertext)?).map_err(|e| {
-                    UploadError::Encryption(format!(
-                        "Credentials file corrupted (invalid UTF-8): {}",
-                        e
-                    ))
-                })?;
-            let store: CredentialStore = toml::from_str(&plaintext).map_err(|e| {
-                UploadError::Encryption(format!("Failed to parse credentials: {e}"))
-            })?;
-            (store, false)
-        } else {
-            let plaintext =
-                String::from_utf8(Self::decrypt_v1(passphrase, ciphertext)?).map_err(|e| {
-                    UploadError::Encryption(format!(
-                        "Credentials file corrupted (invalid UTF-8): {}",
-                        e
-                    ))
-                })?;
-            let store: CredentialStore = toml::from_str(&plaintext).map_err(|e| {
-                UploadError::Encryption(format!("Failed to parse credentials: {e}"))
-            })?;
-            (store, true)
-        };
+        let (plaintext, needs_encryption_migration) =
+            if ciphertext.starts_with(FORMAT_MAGIC)
+                && ciphertext.len() > FORMAT_MAGIC.len()
+                && ciphertext[FORMAT_MAGIC.len()] == FORMAT_VERSION_V2
+            {
+                let plaintext =
+                    String::from_utf8(Self::decrypt_v2(passphrase, ciphertext)?).map_err(|e| {
+                        UploadError::Encryption(format!(
+                            "Credentials file corrupted (invalid UTF-8): {}",
+                            e
+                        ))
+                    })?;
+                (plaintext, false)
+            } else {
+                let plaintext =
+                    String::from_utf8(Self::decrypt_v1(passphrase, ciphertext)?).map_err(|e| {
+                        UploadError::Encryption(format!(
+                            "Credentials file corrupted (invalid UTF-8): {}",
+                            e
+                        ))
+                    })?;
+                (plaintext, true)
+            };
 
-        Ok((store, needs_migration))
+        let (store, needs_format_migration) = Self::try_parse_toml(&plaintext)?;
+
+        Ok((store, needs_encryption_migration || needs_format_migration))
+    }
+
+    /// Parse decrypted TOML, auto-detecting v0.1 (flat) vs v0.2 (workspace) format.
+    fn try_parse_toml(plaintext: &str) -> Result<(Self, bool), UploadError> {
+        let value: toml::Value = toml::from_str(plaintext)
+            .map_err(|e| UploadError::Encryption(format!("Invalid TOML: {e}")))?;
+
+        let table = value.as_table().ok_or_else(|| {
+            UploadError::Encryption("Credential file is not a TOML table".into())
+        })?;
+
+        // Empty store
+        if table.is_empty() {
+            return Ok((Self::default(), false));
+        }
+
+        // New format indicators
+        if table.contains_key("workspaces")
+            || table.contains_key("default_workspace")
+        {
+            let store: CredentialStore = toml::from_str(plaintext).map_err(|e| {
+                UploadError::Encryption(format!("Failed to parse credentials: {e}"))
+            })?;
+            return Ok((store, false));
+        }
+
+        // Try old flat format (v0.1): top-level keys are workspace names
+        let old_map: HashMap<String, PlatformCredentials> = toml::from_str(plaintext)
+            .map_err(|e| UploadError::Encryption(format!("Failed to parse credentials: {e}")))?;
+
+        if old_map.is_empty() {
+            return Ok((Self::default(), false));
+        }
+
+        let default = old_map
+            .contains_key("youtube")
+            .then(|| "youtube".to_string())
+            .or_else(|| old_map.keys().next().cloned());
+
+        tracing::warn!("Credential store migrated from v0.1 flat format to v0.2 workspace format");
+
+        Ok((
+            Self {
+                default_workspace: default,
+                workspaces: old_map,
+            },
+            true,
+        ))
     }
 
     pub fn load(passphrase: &str) -> Result<Self, UploadError> {
@@ -130,9 +266,7 @@ impl CredentialStore {
         let (store, needs_migration) = Self::decrypt_store(passphrase, &ciphertext)?;
 
         if needs_migration {
-            tracing::warn!(
-                "Credentials are in legacy V1 format. Re-encrypting as V2 for improved security."
-            );
+            tracing::warn!("Credential store migrated to latest format. Re-encrypting.");
             store.save(passphrase)?;
         }
 
@@ -151,9 +285,7 @@ impl CredentialStore {
         let (store, needs_migration) = Self::decrypt_store(passphrase, &ciphertext)?;
 
         if needs_migration {
-            tracing::warn!(
-                "Credentials are in legacy V1 format. Re-encrypting as V2 for improved security."
-            );
+            tracing::warn!("Credential store migrated to latest format. Re-encrypting.");
             store.save_to_path(passphrase, path)?;
         }
 
@@ -257,24 +389,36 @@ impl CredentialStore {
         Ok(())
     }
 
-    pub fn get(&self, platform: &str) -> Option<&PlatformCredentials> {
-        self.platforms.get(platform)
+    pub fn get(&self, name: &str) -> Option<&PlatformCredentials> {
+        self.workspaces.get(name)
     }
 
-    pub fn get_mut(&mut self, platform: &str) -> Option<&mut PlatformCredentials> {
-        self.platforms.get_mut(platform)
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut PlatformCredentials> {
+        self.workspaces.get_mut(name)
     }
 
-    pub fn set(&mut self, platform: impl Into<String>, creds: PlatformCredentials) {
-        self.platforms.insert(platform.into(), creds);
+    pub fn set(&mut self, name: impl Into<String>, creds: PlatformCredentials) {
+        self.workspaces.insert(name.into(), creds);
     }
 
-    pub fn remove(&mut self, platform: &str) -> Option<PlatformCredentials> {
-        self.platforms.remove(platform)
+    pub fn remove(&mut self, name: &str) -> Option<PlatformCredentials> {
+        self.workspaces.remove(name)
     }
 
-    pub fn platforms(&self) -> impl Iterator<Item = &String> {
-        self.platforms.keys()
+    pub fn workspaces(&self) -> impl Iterator<Item = &String> {
+        self.workspaces.keys()
+    }
+
+    pub fn default_workspace(&self) -> Option<&str> {
+        self.default_workspace.as_deref()
+    }
+
+    pub fn clear_default(&mut self) {
+        self.default_workspace = None;
+    }
+
+    pub fn set_default(&mut self, name: &str) {
+        self.default_workspace = Some(name.to_string());
     }
 
     fn path() -> Result<PathBuf, UploadError> {
@@ -337,17 +481,10 @@ mod tests {
     fn test_credential_store_roundtrip() {
         let mut store = CredentialStore::default();
         store.set(
-            "test-platform",
-            PlatformCredentials {
-                api_key: Some("secret-key".into()),
-                refresh_token: None,
-                access_token: None,
-                token_expires_at: None,
-                client_id: None,
-                client_secret: None,
-                daemon_url: None,
-            },
+            "test-workspace",
+            PlatformCredentials::new(None, None, None, None),
         );
+        store.get_mut("test-workspace").unwrap().api_key = Some(Zeroizing::new("secret-key".to_string()));
 
         let passphrase = "test-passphrase";
 
@@ -373,7 +510,7 @@ mod tests {
         // Read back using load_from_path
         let loaded = CredentialStore::load_from_path(passphrase, &temp_path).unwrap();
         assert_eq!(
-            loaded.get("test-platform").unwrap().api_key.as_deref(),
+            loaded.get("test-workspace").unwrap().api_key.as_ref().map(|z| z.as_str()),
             Some("secret-key")
         );
 
@@ -381,23 +518,47 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_key_pbkdf2_deterministic() {
-        let passphrase = "test-passphrase";
-        let salt = [0u8; SALT_SIZE];
-        let key1 = derive_key_pbkdf2(passphrase, &salt);
-        let key2 = derive_key_pbkdf2(passphrase, &salt);
-        assert_eq!(key1.as_slice(), key2.as_slice());
+    fn test_credential_store_default_workspace() {
+        let mut store = CredentialStore::default();
+        store.set("alpha", PlatformCredentials::default());
+        store.set("beta", PlatformCredentials::default());
 
-        let salt2 = [1u8; SALT_SIZE];
-        let key3 = derive_key_pbkdf2(passphrase, &salt2);
-        assert_ne!(key1.as_slice(), key3.as_slice());
-
-        let key4 = derive_key_pbkdf2("different-passphrase", &salt);
-        assert_ne!(key1.as_slice(), key4.as_slice());
+        assert!(store.default_workspace().is_none());
+        store.set_default("alpha");
+        assert_eq!(store.default_workspace(), Some("alpha"));
     }
 
     #[test]
-    fn test_credential_store_v1_to_v2_auto_migration() {
+    fn test_credential_store_multi_workspace() {
+        let mut store = CredentialStore::default();
+        store.set(
+            "youtube",
+            PlatformCredentials::new(Some("yt-token".to_string()), None, None, None),
+        );
+        store.set(
+            "cooking",
+            PlatformCredentials::new(Some("cook-token".to_string()), None, None, None),
+        );
+
+        let names: Vec<_> = store.workspaces().collect();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&&"youtube".to_string()));
+        assert!(names.contains(&&"cooking".to_string()));
+
+        assert_eq!(
+            store.get("youtube").unwrap().refresh_token.as_ref().map(|z| z.as_str()),
+            Some("yt-token")
+        );
+        assert_eq!(
+            store.get("cooking").unwrap().refresh_token.as_ref().map(|z| z.as_str()),
+            Some("cook-token")
+        );
+        assert!(store.get("missing").is_none());
+    }
+
+    #[test]
+    fn test_credential_store_v01_to_v02_format_migration() {
+        // Build a v0.1 flat-format encrypted file
         #[allow(deprecated)]
         let key = {
             let passphrase = "migration-test-pass";
@@ -407,22 +568,21 @@ mod tests {
         let nonce_bytes: [u8; NONCE_SIZE] = rand::random();
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        let mut store = CredentialStore::default();
-        store.set(
+        let mut old_store = CredentialStore::default();
+        old_store.set(
             "youtube",
-            PlatformCredentials {
-                api_key: Some("test-api-key".into()),
-                refresh_token: Some("test-refresh".into()),
-                access_token: None,
-                token_expires_at: None,
-                client_id: Some("test-client".into()),
-                client_secret: Some("test-secret".into()),
-                daemon_url: None,
-            },
+            PlatformCredentials::new(
+                Some("test-refresh".to_string()),
+                None,
+                Some("test-client".to_string()),
+                Some("test-secret".to_string()),
+            ),
         );
+        old_store.get_mut("youtube").unwrap().api_key = Some(Zeroizing::new("test-api-key".to_string()));
 
-        let plaintext = toml::to_string(&store).unwrap();
-        let ciphertext = cipher.encrypt(nonce, plaintext.as_bytes()).unwrap();
+        // Serialize the OLD way (flat HashMap without workspaces wrapper)
+        let old_plaintext = toml::to_string(&old_store.workspaces).unwrap();
+        let ciphertext = cipher.encrypt(nonce, old_plaintext.as_bytes()).unwrap();
 
         let mut v1_data = Vec::with_capacity(NONCE_SIZE + ciphertext.len());
         v1_data.extend_from_slice(&nonce_bytes);
@@ -435,12 +595,55 @@ mod tests {
         let loaded =
             CredentialStore::load_from_path("migration-test-pass", temp_file.path()).unwrap();
 
+        // Should have migrated to workspace format
+        assert_eq!(loaded.default_workspace(), Some("youtube"));
         let creds = loaded
             .get("youtube")
-            .expect("youtube platform should be migrated");
-        assert_eq!(creds.api_key.as_deref(), Some("test-api-key"));
-        assert_eq!(creds.refresh_token.as_deref(), Some("test-refresh"));
-        assert_eq!(creds.client_id.as_deref(), Some("test-client"));
+            .expect("youtube workspace should be migrated");
+        assert_eq!(creds.api_key.as_ref().map(|z| z.as_str()), Some("test-api-key"));
+        assert_eq!(creds.refresh_token.as_ref().map(|z| z.as_str()), Some("test-refresh"));
+        assert_eq!(creds.client_id.as_ref().map(|z| z.as_str()), Some("test-client"));
+
+        let _ = fs::remove_file(temp_file.path());
+    }
+
+    #[test]
+    fn test_credential_store_v1_encryption_v01_format_migration() {
+        // V1 encryption + v0.1 flat format — both migrations at once
+        #[allow(deprecated)]
+        let key = {
+            let passphrase = "combo-test-pass";
+            derive_key_legacy(passphrase)
+        };
+        let cipher = Aes256Gcm::new(&key);
+        let nonce_bytes: [u8; NONCE_SIZE] = rand::random();
+        let nonce = Nonce::from_slice(&nonce_bytes);
+
+        let mut old_store = CredentialStore::default();
+        old_store.set(
+            "youtube",
+            PlatformCredentials::new(Some("combo-refresh".to_string()), None, None, None),
+        );
+
+        let old_plaintext = toml::to_string(&old_store.workspaces).unwrap();
+        let ciphertext = cipher.encrypt(nonce, old_plaintext.as_bytes()).unwrap();
+
+        let mut v1_data = Vec::with_capacity(NONCE_SIZE + ciphertext.len());
+        v1_data.extend_from_slice(&nonce_bytes);
+        v1_data.extend_from_slice(&ciphertext);
+
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), &v1_data).unwrap();
+
+        #[allow(deprecated)]
+        let loaded =
+            CredentialStore::load_from_path("combo-test-pass", temp_file.path()).unwrap();
+
+        assert_eq!(loaded.default_workspace(), Some("youtube"));
+        assert_eq!(
+            loaded.get("youtube").unwrap().refresh_token.as_ref().map(|z| z.as_str()),
+            Some("combo-refresh")
+        );
 
         let _ = fs::remove_file(temp_file.path());
     }
@@ -477,6 +680,75 @@ mod tests {
     }
 
     #[test]
+    fn test_credential_store_corrupted_file_too_short() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(temp_file.path(), b"VU\x02short").unwrap();
+        let result = CredentialStore::load_from_path("anypass", temp_file.path());
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), UploadError::Encryption(_)));
+    }
+
+    #[test]
+    fn test_credential_store_corrupted_file_garbage_data() {
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            temp_file.path(),
+            b"VU\x02garbage_data_that_is_not_valid_encrypted_content",
+        )
+        .unwrap();
+        let result = CredentialStore::load_from_path("anypass", temp_file.path());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, UploadError::Encryption(_)));
+    }
+
+    #[test]
+    fn test_credential_store_wrong_passphrase_v2() {
+        let mut store = CredentialStore::default();
+        store.set(
+            "test",
+            PlatformCredentials {
+                api_key: Some(Zeroizing::new("secret".to_string())),
+                refresh_token: None,
+                access_token: None,
+                token_expires_at: None,
+                client_id: None,
+                client_secret: None,
+            },
+        );
+
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path();
+        store
+            .save_to_path("correct_pass", temp_path)
+            .expect("save should succeed");
+
+        let wrong_result = CredentialStore::load_from_path("wrong_pass", temp_path);
+        assert!(wrong_result.is_err());
+        assert!(
+            matches!(wrong_result.unwrap_err(), UploadError::Encryption(_)),
+            "wrong passphrase should return Encryption error"
+        );
+    }
+
+    #[test]
+    fn test_derive_key_pbkdf2_deterministic() {
+        let passphrase = "test-passphrase";
+        let salt = [0u8; SALT_SIZE];
+        let key1 = derive_key_pbkdf2(passphrase, &salt);
+        let key2 = derive_key_pbkdf2(passphrase, &salt);
+        assert_eq!(key1.as_slice(), key2.as_slice());
+
+        let salt2 = [1u8; SALT_SIZE];
+        let key3 = derive_key_pbkdf2(passphrase, &salt2);
+        assert_ne!(key1.as_slice(), key3.as_slice());
+
+        let key4 = derive_key_pbkdf2("different-passphrase", &salt);
+        assert_ne!(key1.as_slice(), key4.as_slice());
+    }
+
+    #[test]
+    #[allow(deprecated)]
     fn test_derive_key_legacy_deterministic() {
         let key1 = derive_key_legacy("same-passphrase");
         let key2 = derive_key_legacy("same-passphrase");
@@ -484,6 +756,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_pbkdf2_vs_legacy_different() {
         let salt = [0u8; SALT_SIZE];
         let pbkdf2_key = derive_key_pbkdf2("test", &salt);

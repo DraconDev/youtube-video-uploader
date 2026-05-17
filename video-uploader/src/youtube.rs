@@ -1,17 +1,18 @@
 use crate::{
-    PlatformUploader, ProgressListener, UploadError, UploadResult, VideoUpload,
+    ProgressListener, UploadError, UploadResult, VideoUpload,
     auth::refresh_token::{is_token_expired, now_secs, refresh_access_token},
-    auth::urls::youtube_upload_endpoint,
+    auth::urls::{youtube_api_url, youtube_upload_endpoint},
     config::CredentialStore,
     net::{build_http_client_with_timeout, retry},
 };
-use async_trait::async_trait;
 use reqwest::header::{AUTHORIZATION, CONTENT_RANGE, CONTENT_TYPE, LOCATION};
 use serde_json::json;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::Mutex;
+use tracing::instrument;
 use zeroize::Zeroizing;
 
 const YOUTUBE_API_PART: &str = "snippet,status";
@@ -47,26 +48,175 @@ pub(crate) fn validate_upload_url(url: &str) -> Result<String, UploadError> {
     Ok(url.to_string())
 }
 
+/// YouTube resumable uploader.
+///
+/// Handles the full YouTube Data API v3 resumable upload flow:
+/// 1. Authenticate via stored OAuth2 credentials
+/// 2. Initiate a resumable upload session
+/// 3. Upload video in 8 MiB chunks with automatic retries
+/// 4. Return the uploaded video ID and watch URL
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::sync::Arc;
+/// use tokio::sync::Mutex;
+/// use video_uploader::{CredentialStore, YouTubeUploader, VideoUpload};
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let store = Arc::new(Mutex::new(CredentialStore::load("my-passphrase")?));
+/// let uploader = YouTubeUploader::new(store, "my-passphrase", "youtube");
+///
+/// let video = VideoUpload::new("/path/to/video.mp4", "My Video");
+/// let result = uploader.upload(&video, None).await?;
+/// println!("Uploaded: {}", result.url);
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone)]
 pub struct YouTubeUploader {
     client: reqwest::Client,
     credential_store: Arc<Mutex<CredentialStore>>,
     passphrase: Zeroizing<String>,
+    workspace: String,
 }
 
 impl YouTubeUploader {
-    pub fn new(credential_store: Arc<Mutex<CredentialStore>>, passphrase: impl AsRef<str>) -> Self {
+    pub fn new(
+        credential_store: Arc<Mutex<CredentialStore>>,
+        passphrase: impl AsRef<str>,
+        workspace: impl Into<String>,
+    ) -> Self {
         Self {
             client: build_http_client_with_timeout(60),
             credential_store,
             passphrase: Zeroizing::new(passphrase.as_ref().to_string()),
+            workspace: workspace.into(),
         }
     }
 
+    /// Extract resumable upload state from an `Interrupted` error.
+    ///
+    /// Returns `Some(UploadState)` if the error is `Interrupted`, allowing
+    /// the caller to save state and resume later. Returns `None` for other errors.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use video_uploader::{YouTubeUploader, VideoUpload};
+    ///
+    /// # async fn example(uploader: &YouTubeUploader, video: &VideoUpload) {
+    /// match uploader.upload(video, None).await {
+    ///     Ok(result) => println!("Uploaded: {}", result.url),
+    ///     Err(e) => {
+    ///         if let Some(state) = YouTubeUploader::extract_resume_state(&e) {
+    ///             println!("Interrupted at {} bytes", state.uploaded_bytes);
+    ///             state.save().ok();
+    ///         }
+    ///     }
+    /// }
+    /// # }
+    /// ```
+    pub fn extract_resume_state(error: &UploadError) -> Option<crate::UploadState> {
+        match error {
+            UploadError::Interrupted { uploaded, total } => Some(crate::UploadState {
+                upload_url: String::new(), // URL is not available from the error alone
+                uploaded_bytes: *uploaded,
+                total_size: *total,
+                file_path: PathBuf::new(),
+                title: String::new(),
+                workspace: String::new(),
+            }),
+            _ => None,
+        }
+    }
+
+    /// Resume an upload from saved state.
+    ///
+    /// Continues uploading from `state.uploaded_bytes`, skipping already-transmitted
+    /// chunks. The upload URL must still be valid (Google resumable URLs expire
+    /// after ~7 days of inactivity).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use video_uploader::{YouTubeUploader, UploadState, VideoUpload};
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let state = UploadState::load_for_file(std::path::Path::new("/path/to/video.mp4"))?.unwrap();
+    /// let uploader = YouTubeUploader::new(
+    ///     /* store */ unreachable!(), "pass", &state.workspace,
+    /// );
+    /// let video = VideoUpload::new(state.file_path, &state.title);
+    /// let result = uploader.resume(&state, &video, None).await?;
+    /// println!("Resumed upload: {}", result.url);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn resume(
+        &self,
+        state: &crate::UploadState,
+        video: &VideoUpload,
+        progress: Option<Arc<dyn ProgressListener>>,
+    ) -> Result<UploadResult, UploadError> {
+        let access_token = self.get_access_token().await?;
+        let total_size = video.file_size().await?;
+
+        let json = self
+            .upload_with_retry(&state.upload_url, video, &access_token, total_size, progress.clone())
+            .await
+            .inspect_err(|e| {
+                if let Some(p) = &progress {
+                    p.on_error(e);
+                }
+            })?;
+
+        let video_id = json["id"]
+            .as_str()
+            .ok_or_else(|| UploadError::PlatformApi {
+                status: 500,
+                message: "No video ID in upload response".into(),
+            })?;
+
+        let result = UploadResult::new(
+            self.workspace.clone(),
+            video_id.to_string(),
+            format!("https://www.youtube.com/watch?v={video_id}"),
+            video.title.clone(),
+        );
+
+        // Clean up saved state on success
+        if let Err(e) = state.delete() {
+            tracing::warn!("Failed to delete resume state after successful upload: {e}");
+        }
+
+        if let Some(p) = progress {
+            p.on_complete(&result);
+        }
+
+        Ok(result)
+    }
+
     pub async fn delete_video(&self, video_id: &str) -> Result<(), UploadError> {
+        self.delete_video_with_url(&youtube_api_url(), video_id)
+            .await
+    }
+
+    #[cfg(feature = "test-utils")]
+    pub async fn delete_video_url(&self, api_url: &str, video_id: &str) -> Result<(), UploadError> {
+        self.delete_video_with_url(api_url, video_id).await
+    }
+
+    async fn delete_video_with_url(
+        &self,
+        api_url: &str,
+        video_id: &str,
+    ) -> Result<(), UploadError> {
         use reqwest::header::AUTHORIZATION;
         let access_token = self.get_access_token().await?;
-        let url = format!("{}?id={}", crate::auth::urls::youtube_api_url(), video_id);
+        let url = format!("{}/videos?id={}", api_url, video_id);
         let resp = self
             .client
             .delete(&url)
@@ -88,11 +238,11 @@ impl YouTubeUploader {
         let (_access_token, refresh_tok, client_id, client_secret) = {
             let store = self.credential_store.lock().await;
             let creds = store
-                .get("youtube")
-                .ok_or_else(|| UploadError::Auth("YouTube not configured".into()))?;
+                .get(&self.workspace)
+                .ok_or_else(|| UploadError::Auth(format!("Workspace '{}' not configured", self.workspace)))?;
             let token_expired = creds.token_expires_at.map(is_token_expired).unwrap_or(true);
             if !token_expired && let Some(ref tok) = creds.access_token {
-                return Ok(tok.clone());
+                return Ok(tok.as_str().to_string());
             }
             (
                 creds.access_token.clone(),
@@ -102,20 +252,21 @@ impl YouTubeUploader {
             )
         };
 
-        let refresh_tok =
-            refresh_tok.ok_or_else(|| UploadError::Auth("No refresh token".into()))?;
-        let client_id = client_id.ok_or_else(|| UploadError::Auth("No client ID".into()))?;
+        let refresh_tok = refresh_tok
+            .ok_or_else(|| UploadError::Auth("No refresh token".into()))?;
+        let client_id = client_id
+            .ok_or_else(|| UploadError::Auth("No client ID".into()))?;
         let client_secret =
             client_secret.ok_or_else(|| UploadError::Auth("No client secret".into()))?;
 
         tracing::info!("Refreshing YouTube access token");
-        let token = refresh_access_token(&refresh_tok, &client_id, &client_secret).await?;
+        let token = refresh_access_token(&self.client, &refresh_tok, &client_id, &client_secret).await?;
         let access_token = token.access_token.clone();
 
         {
             let mut store = self.credential_store.lock().await;
-            if let Some(creds) = store.get_mut("youtube") {
-                creds.access_token = Some(token.access_token);
+            if let Some(creds) = store.get_mut(&self.workspace) {
+                creds.access_token = Some(Zeroizing::new(token.access_token));
                 creds.token_expires_at = Some(now_secs() + token.expires_in);
                 if let Err(e) = store.save(&self.passphrase) {
                     tracing::error!("Failed to persist refreshed token: {e}");
@@ -131,13 +282,57 @@ impl YouTubeUploader {
             .to_string()
     }
 
-    async fn initiate_resumable(
+    /// Initiate a resumable upload session using the default YouTube upload endpoint.
+    pub async fn initiate_resumable(
         &self,
+        video: &VideoUpload,
+        access_token: &str,
+        total_size: u64,
+    ) -> Result<String, UploadError> {
+        self.initiate_resumable_inner(video, access_token, total_size).await
+    }
+
+    #[cfg(feature = "test-utils")]
+    pub async fn initiate_resumable_url(
+        &self,
+        upload_url: &str,
         video: &VideoUpload,
         access_token: &str,
     ) -> Result<String, UploadError> {
         let total_size = video.file_size().await?;
+        self.initiate_resumable_with_url(upload_url, video, access_token, total_size)
+            .await
+    }
 
+    #[cfg(feature = "test-utils")]
+    pub async fn initiate_resumable_url_with_retry(
+        &self,
+        upload_url: &str,
+        video: &VideoUpload,
+        access_token: &str,
+    ) -> Result<String, UploadError> {
+        let total_size = video.file_size().await?;
+        self.initiate_resumable_with_url_with_retry(upload_url, video, access_token, total_size)
+            .await
+    }
+
+    async fn initiate_resumable_inner(
+        &self,
+        video: &VideoUpload,
+        access_token: &str,
+        total_size: u64,
+    ) -> Result<String, UploadError> {
+        self.initiate_resumable_with_url(&youtube_upload_endpoint(), video, access_token, total_size)
+            .await
+    }
+
+    async fn initiate_resumable_with_url(
+        &self,
+        upload_url: &str,
+        video: &VideoUpload,
+        access_token: &str,
+        total_size: u64,
+    ) -> Result<String, UploadError> {
         let category_id = video.category_id.clone().unwrap_or_else(|| {
             tracing::warn!(
                 "No category specified for YouTube upload, defaulting to People & Blogs (22)"
@@ -157,7 +352,7 @@ impl YouTubeUploader {
 
         let response = self
             .client
-            .post(format!("{}/videos", youtube_upload_endpoint()))
+            .post(upload_url)
             .query(&[("uploadType", "resumable"), ("part", YOUTUBE_API_PART)])
             .header(AUTHORIZATION, format!("Bearer {access_token}"))
             .header(CONTENT_TYPE, "application/json; charset=UTF-8")
@@ -196,29 +391,61 @@ impl YouTubeUploader {
         Ok(location)
     }
 
+    #[cfg(feature = "test-utils")]
+    pub fn validate_upload_url_for_testing(url: &str) -> Result<String, UploadError> {
+        validate_upload_url(url)
+    }
+
+    #[cfg(feature = "test-utils")]
+    async fn initiate_resumable_with_url_with_retry(
+        &self,
+        upload_url: &str,
+        video: &VideoUpload,
+        access_token: &str,
+        total_size: u64,
+    ) -> Result<String, UploadError> {
+        retry(
+            || self.initiate_resumable_with_url(upload_url, video, access_token, total_size),
+            MAX_RETRIES,
+        )
+        .await
+    }
+
     async fn initiate_resumable_with_retry(
         &self,
         video: &VideoUpload,
         access_token: &str,
+        total_size: u64,
     ) -> Result<String, UploadError> {
-        retry(|| self.initiate_resumable(video, access_token), MAX_RETRIES).await
+        self.initiate_resumable_inner(video, access_token, total_size).await
     }
 
+    #[instrument(skip(self, video, progress), fields(workspace = %self.workspace, title = %video.title))]
     pub async fn upload_chunks(
         &self,
         upload_url: &str,
         video: &VideoUpload,
         access_token: &str,
+        total_size: u64,
         progress: Option<Arc<dyn ProgressListener>>,
     ) -> Result<serde_json::Value, UploadError> {
-        let total_size = video.file_size().await?;
         let mut file = File::open(&video.file_path).await?;
         let mut uploaded: u64 = 0;
         let mut chunk_buf = vec![0u8; CHUNK_SIZE];
         let mime = self.mime_type(video);
 
         while uploaded < total_size {
-            let bytes_read = file.read(&mut chunk_buf).await?;
+            // Read a full chunk, handling partial reads from the OS.
+            // `read()` may return fewer bytes than the buffer size even when
+            // more data is available, so we loop until the buffer is full or EOF.
+            let mut bytes_read = 0usize;
+            while bytes_read < CHUNK_SIZE && (uploaded + bytes_read as u64) < total_size {
+                let n = file.read(&mut chunk_buf[bytes_read..]).await?;
+                if n == 0 {
+                    break; // EOF
+                }
+                bytes_read += n;
+            }
             if bytes_read == 0 {
                 break;
             }
@@ -304,38 +531,30 @@ impl YouTubeUploader {
         upload_url: &str,
         video: &VideoUpload,
         access_token: &str,
+        total_size: u64,
         progress: Option<Arc<dyn ProgressListener>>,
     ) -> Result<serde_json::Value, UploadError> {
         retry(
-            || self.upload_chunks(upload_url, video, access_token, progress.clone()),
+            || self.upload_chunks(upload_url, video, access_token, total_size, progress.clone()),
             MAX_RETRIES,
         )
         .await
     }
-}
 
-#[async_trait]
-impl PlatformUploader for YouTubeUploader {
-    fn platform_name(&self) -> &'static str {
-        "youtube"
-    }
-
-    fn supports_resumable(&self) -> bool {
-        true
-    }
-
-    async fn upload(
+    #[instrument(skip(self, video, progress), fields(workspace = %self.workspace, title = %video.title))]
+    pub async fn upload(
         &self,
         video: &VideoUpload,
         progress: Option<Arc<dyn ProgressListener>>,
     ) -> Result<UploadResult, UploadError> {
         let access_token = self.get_access_token().await?;
+        let total_size = video.file_size().await?;
         let upload_url = self
-            .initiate_resumable_with_retry(video, &access_token)
+            .initiate_resumable_with_retry(video, &access_token, total_size)
             .await?;
 
         let json = self
-            .upload_with_retry(&upload_url, video, &access_token, progress.clone())
+            .upload_with_retry(&upload_url, video, &access_token, total_size, progress.clone())
             .await
             .inspect_err(|e| {
                 if let Some(p) = &progress {
@@ -350,12 +569,12 @@ impl PlatformUploader for YouTubeUploader {
                 message: "No video ID in upload response".into(),
             })?;
 
-        let result = UploadResult {
-            platform: "youtube",
-            platform_id: video_id.to_string(),
-            url: format!("https://www.youtube.com/watch?v={video_id}"),
-            title: video.title.clone(),
-        };
+        let result = UploadResult::new(
+            self.workspace.clone(),
+            video_id.to_string(),
+            format!("https://www.youtube.com/watch?v={video_id}"),
+            video.title.clone(),
+        );
 
         if let Some(p) = progress {
             p.on_complete(&result);
@@ -368,21 +587,6 @@ impl PlatformUploader for YouTubeUploader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::CredentialStore;
-
-    #[test]
-    fn test_youtube_platform_name() {
-        let store = Arc::new(Mutex::new(CredentialStore::default()));
-        let yt = YouTubeUploader::new(store, "test");
-        assert_eq!(yt.platform_name(), "youtube");
-    }
-
-    #[test]
-    fn test_youtube_supports_resumable() {
-        let store = Arc::new(Mutex::new(CredentialStore::default()));
-        let yt = YouTubeUploader::new(store, "test");
-        assert!(yt.supports_resumable());
-    }
 
     #[test]
     fn test_validate_upload_url() {

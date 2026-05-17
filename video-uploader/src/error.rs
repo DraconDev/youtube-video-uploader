@@ -1,5 +1,6 @@
 /// Errors that can occur during video upload.
 #[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
 pub enum UploadError {
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
@@ -25,17 +26,14 @@ pub enum UploadError {
     #[error("Unsupported file format: {0}")]
     UnsupportedFormat(String),
 
-    #[error("Platform '{0}' is not configured")]
-    NotConfigured(String),
-
     #[error("Configuration error: {0}")]
     Config(String),
 
     #[error("Encryption error: {0}")]
     Encryption(String),
 
-    #[error("{0}")]
-    Other(String),
+    #[error("Retry exhausted with no attempts made")]
+    NoAttempts,
 }
 
 impl UploadError {
@@ -132,8 +130,8 @@ mod tests {
     }
 
     #[test]
-    fn test_other_error_not_retryable() {
-        let err = UploadError::Other("Something went wrong".into());
+    fn test_no_attempts_error_not_retryable() {
+        let err = UploadError::NoAttempts;
         assert!(!err.is_retryable());
     }
 }

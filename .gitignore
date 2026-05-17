@@ -12,6 +12,7 @@
 .DS_Store
 .direnv/
 .dracon/*
+.env.test
 .git/
 .venv/
 __pycache__/

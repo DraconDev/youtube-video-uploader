@@ -27,6 +27,10 @@ You grant to the Project Owner a non-exclusive, royalty-free, irrevocable, world
 
 You acknowledge that you retain all copyright in Your Contributions. You represent that you have the right to grant the licenses in this CLA and that Your Contributions contain no content requiring a license from any third party.
 
+## 3a. Moral Rights Waiver
+
+To the extent permitted by applicable law, You waive any and all moral rights (including rights of attribution, integrity, and republication) in Your Contributions. This waiver applies to any use of Your Contributions in connection with this Project, including modifications, adaptations, and derivative works. You consent to the Project Owner and licensees using Your Contributions without attribution if they choose, and to modifying Your Contributions without requiring prior approval. This waiver does not affect legal rights that cannot be waived, such as rights that persist under applicable law in certain jurisdictions.
+
 ## 4. No Additional Obligations
 
 Your signing of this CLA does not obligate the Project Owner to accept or merge your Contributions. The Project Owner reserves the right to reject any Contribution for any reason or no reason.

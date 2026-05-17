@@ -1,4 +1,5 @@
 use crate::UploadError;
+use crate::auth::TokenResponse;
 use crate::auth::urls::{google_device_code_url, google_token_url, youtube_upload_scope};
 use crate::net::build_http_client;
 use rand::Rng;
@@ -33,14 +34,6 @@ pub struct DeviceCodeResponse {
 
 fn default_interval() -> u64 {
     5
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TokenResponse {
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-    pub expires_in: u64,
-    pub token_type: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,7 +85,50 @@ pub async fn start_device_code_url(
     start_device_code_with_url(device_code_url, client_id, code_challenge).await
 }
 
+#[cfg(feature = "test-utils")]
+pub async fn poll_for_token_url(
+    token_url: &str,
+    device_code: &str,
+    client_id: &str,
+    client_secret: &str,
+    code_verifier: &str,
+    expires_in_secs: u64,
+    poll_interval_secs: u64,
+) -> Result<TokenResponse, UploadError> {
+    poll_for_token_with_url(
+        token_url,
+        device_code,
+        client_id,
+        client_secret,
+        code_verifier,
+        expires_in_secs,
+        poll_interval_secs,
+    )
+    .await
+}
+
 pub async fn poll_for_token(
+    device_code: &str,
+    client_id: &str,
+    client_secret: &str,
+    code_verifier: &str,
+    expires_in_secs: u64,
+    poll_interval_secs: u64,
+) -> Result<TokenResponse, UploadError> {
+    poll_for_token_with_url(
+        google_token_url().as_str(),
+        device_code,
+        client_id,
+        client_secret,
+        code_verifier,
+        expires_in_secs,
+        poll_interval_secs,
+    )
+    .await
+}
+
+pub async fn poll_for_token_with_url(
+    token_url: &str,
     device_code: &str,
     client_id: &str,
     client_secret: &str,
@@ -122,11 +158,7 @@ pub async fn poll_for_token(
             ("code_verifier", code_verifier),
         ];
 
-        let response = client
-            .post(google_token_url().as_str())
-            .form(&params)
-            .send()
-            .await?;
+        let response = client.post(token_url).form(&params).send().await?;
 
         let status = response.status();
         let body = response.text().await?;

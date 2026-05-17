@@ -13,8 +13,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-      - run: cargo test --workspace --all-features
-      - run: cargo clippy --workspace --all-features -- -D warnings
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --features test-utils
+      - run: cargo clippy --workspace --features test-utils -- -D warnings
       - run: cargo fmt --check --workspace
 
   test-macos:
@@ -22,20 +23,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test -p video-uploader
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p video-uploader --features test-utils
 
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - run: cargo build --release -p video-uploader-cli
+      - run: ./target/release/video-uploader --help
 
   docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - run: cargo doc --workspace --no-deps
         env:
           RUSTDOCFLAGS: --error=unused --document-hidden-items
@@ -45,5 +50,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - run: cargo install cargo-audit
-      - run: cargo audit
+      - run: cargo audit --deny warnings

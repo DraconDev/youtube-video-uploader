@@ -9,8 +9,8 @@ fn is_private_ip_reference(ip_str: &str) -> bool {
     if ip_str == "localhost" || ip_str == "127.0.0.1" || ip_str == "::1" {
         return true;
     }
-    let ip_str = if ip_str.starts_with("::ffff:") {
-        &ip_str[7..]
+    let ip_str = if let Some(stripped) = ip_str.strip_prefix("::ffff:") {
+        stripped
     } else {
         ip_str
     };
@@ -149,7 +149,7 @@ fn proptest_pkce_pair_verifies_correctly() {
         // Verify: challenge = base64url(SHA256(verifier))
         let hash = Sha256::digest(verifier.as_bytes());
         let expected =
-            base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &hash);
+            base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash);
 
         assert_eq!(
             challenge, expected,
@@ -183,16 +183,14 @@ fn proptest_credential_store_roundtrip_random_data() {
     let mut store = CredentialStore::default();
     store.set(
         "youtube",
-        PlatformCredentials {
-            refresh_token: Some("test_refresh_token_123".into()),
-            access_token: Some("test_access_token_456".into()),
-            token_expires_at: Some(1234567890),
-            client_id: Some("client_id_abc".into()),
-            client_secret: Some("client_secret_xyz".into()),
-            api_key: None,
-            daemon_url: None,
-        },
+        PlatformCredentials::new(
+            Some("test_refresh_token_123".to_string()),
+            Some("test_access_token_456".to_string()),
+            Some("client_id_abc".to_string()),
+            Some("client_secret_xyz".to_string()),
+        ),
     );
+    store.get_mut("youtube").unwrap().token_expires_at = Some(1234567890);
 
     let passphrase = "TestPassphrase123";
 
@@ -205,8 +203,8 @@ fn proptest_credential_store_roundtrip_random_data() {
     let loaded = CredentialStore::load_from_path(passphrase, temp_path).unwrap();
 
     assert_eq!(
-        loaded.get("youtube").unwrap().refresh_token,
-        Some("test_refresh_token_123".into())
+        loaded.get("youtube").unwrap().refresh_token.as_ref().map(|z| z.as_str()),
+        Some("test_refresh_token_123")
     );
 
     // Wrong passphrase should fail
@@ -218,27 +216,4 @@ fn proptest_credential_store_roundtrip_random_data() {
         "expected Encryption error, got: {:?}",
         err
     );
-}
-
-proptest! {
-    #[test]
-    fn proptest_claim_name_always_valid_format(claim in "\\PC{0,200}") {
-        let result = video_uploader::platforms::odysee::generate_claim_name(&claim);
-        // Claim name must match: ^[a-z0-9-]+$ and length 1-63
-        // Empty result is valid (title with no alphanumeric chars)
-        if !result.is_empty() {
-            prop_assert!(result.len() <= 63, "claim name too long: {}", result.len());
-            prop_assert!(
-                result.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
-                "claim name contains invalid chars: {:?} -> {:?}",
-                claim, result
-            );
-            // Result should not be all dashes or start/end with dash (after trim)
-            prop_assert!(
-                !result.chars().all(|c| c == '-'),
-                "claim name is all dashes: {:?}",
-                result
-            );
-        }
-    }
 }

@@ -17,28 +17,23 @@ async fn start_counting_server(start: u32) -> (SocketAddr, Arc<Mutex<u32>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let actual = listener.local_addr().unwrap();
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((mut stream, _)) => {
-                    let mut buf = [0u8; 8192];
-                    let n = match stream.read(&mut buf).await {
-                        Ok(n) => n,
-                        Err(_) => continue,
-                    };
-                    if n == 0 {
-                        continue;
-                    }
-                    let mut guard = cnt.lock().await;
-                    *guard += 1;
-                    let body = if *guard == 1 {
-                        "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n"
-                    } else {
-                        "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
-                    };
-                    let _ = stream.write_all(body.as_bytes()).await;
-                }
-                Err(_) => break,
+        while let Ok((mut stream, _)) = listener.accept().await {
+            let mut buf = [0u8; 8192];
+            let n = match stream.read(&mut buf).await {
+                Ok(n) => n,
+                Err(_) => continue,
+            };
+            if n == 0 {
+                continue;
             }
+            let mut guard = cnt.lock().await;
+            *guard += 1;
+            let body = if *guard == 1 {
+                "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n"
+            } else {
+                "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+            };
+            let _ = stream.write_all(body.as_bytes()).await;
         }
     });
     (actual, counter)
@@ -61,14 +56,14 @@ async fn test_http_server_returns_5xx_then_200() {
         .unwrap();
 
     let resp1 = client
-        .get(&format!("http://{}/test", addr))
+        .get(format!("http://{}/test", addr))
         .send()
         .await
         .unwrap();
     assert_eq!(resp1.status().as_u16(), 500);
 
     let resp2 = client
-        .get(&format!("http://{}/test", addr))
+        .get(format!("http://{}/test", addr))
         .send()
         .await
         .unwrap();
@@ -123,7 +118,7 @@ async fn test_http_redirect_307_followed() {
         .unwrap();
 
     let resp = client
-        .put(&format!("http://127.0.0.1:{}/upload", redirect_port))
+        .put(format!("http://127.0.0.1:{}/upload", redirect_port))
         .body(b"test data".as_slice())
         .send()
         .await
@@ -147,30 +142,25 @@ async fn test_http_raw_body_echoed_back() {
     let addr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((mut stream, _)) => {
-                    let mut buf = [0u8; 8192];
-                    let n = match stream.read(&mut buf).await {
-                        Ok(n) => n,
-                        Err(_) => continue,
-                    };
-                    if n == 0 {
-                        continue;
-                    }
-                    let s = String::from_utf8_lossy(&buf[..n]);
-                    if let Some(pos) = s.find("\r\n\r\n") {
-                        let body = &buf[pos + 4..n];
-                        let resp =
-                            format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len());
-                        let _ = stream.write_all(resp.as_bytes()).await;
-                        let _ = stream.write_all(body).await;
-                    } else {
-                        let resp = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
-                        let _ = stream.write_all(resp.as_bytes()).await;
-                    }
-                }
-                Err(_) => break,
+        while let Ok((mut stream, _)) = listener.accept().await {
+            let mut buf = [0u8; 8192];
+            let n = match stream.read(&mut buf).await {
+                Ok(n) => n,
+                Err(_) => continue,
+            };
+            if n == 0 {
+                continue;
+            }
+            let s = String::from_utf8_lossy(&buf[..n]);
+            if let Some(pos) = s.find("\r\n\r\n") {
+                let body = &buf[pos + 4..n];
+                let resp =
+                    format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len());
+                let _ = stream.write_all(resp.as_bytes()).await;
+                let _ = stream.write_all(body).await;
+            } else {
+                let resp = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+                let _ = stream.write_all(resp.as_bytes()).await;
             }
         }
     });
@@ -184,7 +174,7 @@ async fn test_http_raw_body_echoed_back() {
 
     let body = b"Hello, real HTTP body!";
     let resp = client
-        .request(reqwest::Method::POST, &format!("http://{}/echo", addr))
+        .request(reqwest::Method::POST, format!("http://{}/echo", addr))
         .body(body.as_slice())
         .send()
         .await
@@ -208,21 +198,15 @@ async fn test_http_connection_close_triggers_reconnect() {
     let addr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((mut stream, _)) => {
-                    let mut buf = [0u8; 1024];
-                    let _n = stream.read(&mut buf).await.unwrap_or(0);
-                    let mut guard = counter.lock().await;
-                    *guard += 1;
-                    let resp = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nHello"
-                    );
-                    let _ = stream.write_all(resp.as_bytes()).await;
-                    drop(stream);
-                }
-                Err(_) => break,
-            }
+        while let Ok((mut stream, _)) = listener.accept().await {
+            let mut buf = [0u8; 1024];
+            let _n = stream.read(&mut buf).await.unwrap_or(0);
+            let mut guard = counter.lock().await;
+            *guard += 1;
+            let resp =
+                "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nHello".to_string();
+            let _ = stream.write_all(resp.as_bytes()).await;
+            drop(stream);
         }
     });
 
@@ -232,7 +216,7 @@ async fn test_http_connection_close_triggers_reconnect() {
         .unwrap();
 
     let resp1 = client
-        .get(&format!("http://{}/", addr))
+        .get(format!("http://{}/", addr))
         .send()
         .await
         .unwrap();
@@ -240,7 +224,7 @@ async fn test_http_connection_close_triggers_reconnect() {
     sleep(Duration::from_millis(50)).await;
 
     let resp2 = client
-        .get(&format!("http://{}/", addr))
+        .get(format!("http://{}/", addr))
         .send()
         .await
         .unwrap();
@@ -256,32 +240,27 @@ async fn test_http_tcp_echo_server() {
     let addr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
-        loop {
-            match listener.accept().await {
-                Ok((mut stream, _)) => {
-                    let mut buf = [0u8; 4096];
-                    let n = match stream.read(&mut buf).await {
-                        Ok(n) => n,
-                        Err(_) => continue,
-                    };
-                    if n == 0 {
-                        continue;
-                    }
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
-                        n,
-                        String::from_utf8_lossy(&buf[..n])
-                    );
-                    let _ = stream.write_all(response.as_bytes()).await;
-                }
-                Err(_) => break,
+        while let Ok((mut stream, _)) = listener.accept().await {
+            let mut buf = [0u8; 4096];
+            let n = match stream.read(&mut buf).await {
+                Ok(n) => n,
+                Err(_) => continue,
+            };
+            if n == 0 {
+                continue;
             }
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
+                n,
+                String::from_utf8_lossy(&buf[..n])
+            );
+            let _ = stream.write_all(response.as_bytes()).await;
         }
     });
 
     sleep(Duration::from_millis(30)).await;
 
-    let mut stream = TokioTcpStream::connect(&addr).await.unwrap();
+    let mut stream = TokioTcpStream::connect(addr).await.unwrap();
     stream
         .write_all(b"GET /test HTTP/1.1\r\nHost: localhost\r\n\r\n")
         .await

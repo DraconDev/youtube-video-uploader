@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Unified video upload library for YouTube and Odysee"
+description = "YouTube video upload library with resumable upload support"
 
 [dependencies]
 tokio.workspace = true
@@ -14,7 +14,6 @@ serde_json.workspace = true
 thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true
-async-trait = "0.1"
 
 # Auth & crypto
 aes-gcm = { version = "0.10", features = ["std"] }
@@ -22,7 +21,7 @@ rand.workspace = true
 sha2 = "0.10"
 pbkdf2 = "0.12"
 base64 = "0.22"
-zeroize = { version = "1.8", features = ["derive"] }
+zeroize = { version = "1.8", features = ["derive", "serde"] }
 
 # File handling
 mime_guess.workspace = true
@@ -31,14 +30,16 @@ url = "2.5"
 # Config dirs
 dirs.workspace = true
 
+# Open browser for auth
+open = "5"
+urlencoding = "2"
+
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
 tempfile = "3"
 proptest = "1.5"
 anyhow.workspace = true
-dotenvy = "0.15"
 
 [features]
-live-test = []
 test-utils = []

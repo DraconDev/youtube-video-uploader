@@ -12,12 +12,12 @@ pub struct RefreshTokenResponse {
 }
 
 async fn refresh_access_token_with_url(
+    client: &reqwest::Client,
     token_url: &str,
     refresh_token: &str,
     client_id: &str,
     client_secret: &str,
 ) -> Result<RefreshTokenResponse, crate::UploadError> {
-    let client = build_http_client();
     let params = [
         ("client_id", client_id),
         ("client_secret", client_secret),
@@ -42,11 +42,13 @@ async fn refresh_access_token_with_url(
 }
 
 pub async fn refresh_access_token(
+    client: &reqwest::Client,
     refresh_token: &str,
     client_id: &str,
     client_secret: &str,
 ) -> Result<RefreshTokenResponse, crate::UploadError> {
     refresh_access_token_with_url(
+        client,
         google_token_url().as_str(),
         refresh_token,
         client_id,
@@ -57,12 +59,24 @@ pub async fn refresh_access_token(
 
 #[cfg(feature = "test-utils")]
 pub async fn refresh_access_token_url(
+    client: &reqwest::Client,
     token_url: &str,
     refresh_token: &str,
     client_id: &str,
     client_secret: &str,
 ) -> Result<RefreshTokenResponse, crate::UploadError> {
-    refresh_access_token_with_url(token_url, refresh_token, client_id, client_secret).await
+    refresh_access_token_with_url(client, token_url, refresh_token, client_id, client_secret).await
+}
+
+/// Standalone refresh that creates its own HTTP client.
+/// Used only by the device code flow (which doesn't have a `YouTubeUploader` yet).
+pub async fn refresh_access_token_standalone(
+    refresh_token: &str,
+    client_id: &str,
+    client_secret: &str,
+) -> Result<RefreshTokenResponse, crate::UploadError> {
+    let client = build_http_client();
+    refresh_access_token(&client, refresh_token, client_id, client_secret).await
 }
 
 pub fn now_secs() -> u64 {

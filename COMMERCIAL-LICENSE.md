@@ -4,7 +4,7 @@
 
 ## Preamble
 
-All Dracon software is available under the GNU Affero General Public License (AGPLv3) for open source, community, and non-commercial use. If you want to use Dracon software in a commercial product or service **without** being subject to the AGPL's source disclosure requirements, you need a Commercial License.
+All Dracon software is available under the GNU Affero General Public License v3 (AGPLv3). Anyone may use Dracon software under AGPLv3 at any scale, provided they comply with its terms (including source disclosure for network use). This Commercial License is an alternative for organizations that cannot or prefer not to comply with AGPLv3's requirements. Organizations with fewer than 10 employees may use this Commercial License at no cost. Organizations with 10 or more employees require a paid Commercial License for Production Use under these terms. Visit https://dracon.uk/licensing for details and purchase.
 
 This document constitutes a legally binding agreement between the licensee ("You" or "Your") and Dracon ("Licensor"). By purchasing or activating a Commercial License, You agree to be bound by these terms.
 
@@ -20,7 +20,7 @@ This document constitutes a legally binding agreement between the licensee ("You
 
 - **"Organization"** means the legal entity (company, LLC, partnership, or other organization) that is the licensee. This includes all subsidiaries and affiliates under common control.
 
-- **"Engineer"** means a full-time, part-time, or contract developer who contributes to software development using Dracon Software. A developer who spends less than 20% of their time on work involving Dracon counts as 0.5 engineers.
+- **"Employee"** means a full-time, part-time, or contract individual who performs work for the Organization. Employee count is measured at the Organization level, not per project or per team.
 
 ---
 
@@ -42,26 +42,24 @@ Subject to the terms and payment obligations in this agreement, Licensor grants 
 
 ---
 
-## 3. Pricing Tiers
+## 3. Pricing
 
-| Tier | Engineered By | Annual License Fee |
-|------|:-------------|:-------------------|
-| **Indie** | Up to 3 engineers | Free |
-| **Startup** | 4–10 engineers | Contact for pricing |
-| **Scale** | 11–50 engineers | Contact for pricing |
-| **Enterprise** | 51+ engineers or revenue > £5M/year | Contact for pricing |
+Organizations with fewer than 10 employees may use Dracon Software under this Commercial License or AGPLv3 at no cost.
 
-- Licenses are annual and recurring. Renewal is required to maintain active status.
-- Each Licensed Instance requires a separate license unless otherwise agreed in writing.
-- Licenses are priced per Organization, not per seat.
+Organizations with 10 or more employees that wish to use Dracon Software without complying with AGPLv3's source disclosure requirements require a paid Commercial License for Production Use. Pricing is based on Organization size and is set annually.
 
+AGPLv3 remains available to all organizations regardless of size, provided they comply with its terms.
+
+For current pricing and online purchasing, visit **https://dracon.uk/licensing**.
 For pricing inquiries: **license@dracon.uk**
 
 ---
 
 ## 4. Production Use Definition
 
-The Startup, Scale, and Enterprise tiers require a Commercial License for any **Production Use** of Dracon Software.
+This Commercial License is an alternative to AGPLv3 for organizations that prefer not to comply with AGPLv3's source disclosure requirements. Organizations with 10 or more employees require a paid Commercial License for **Production Use** under these terms (see Section 3 — Pricing). Organizations with fewer than 10 employees may use Dracon Software under this Commercial License or AGPLv3 at no cost, regardless of use case.
+
+**Nothing in this agreement restricts any party from using Dracon Software under AGPLv3, at any scale, provided they comply with AGPLv3's terms.**
 
 **Production Use includes:**
 - Running Dracon Software in a live environment that serves end users or external clients
@@ -72,13 +70,33 @@ The Startup, Scale, and Enterprise tiers require a Commercial License for any **
 - Development and testing in non-production environments
 - Personal or academic use not connected to commercial activity
 - Evaluation of Dracon Software for potential purchase (up to 90 days)
-- Internal use that does not serve end users or generate revenue
+- Internal use that does not serve end users or generate revenue by organizations with fewer than 10 employees
 
 If You are unsure whether Your use qualifies as Production Use, contact **license@dracon.uk** before deploying.
 
 ---
 
-## 5. Competing Product Restriction
+## 5. Patents
+
+No patent license is granted under this agreement, whether express, implied, through exhaustion, or otherwise, except to the minimum extent required by applicable law.
+
+---
+
+## 6. Trademarks
+
+This agreement does not grant any right to use Dracon's names, trademarks, service marks, logos, or branding, except as strictly necessary for accurate attribution or as separately authorized in writing by Dracon.
+
+---
+
+## 7. Source Redistribution
+
+You may distribute applications, binaries, or other works built with Dracon Software, but this agreement does not permit public redistribution of Dracon Software's source code, whether modified or unmodified, except with Dracon's separate written permission.
+
+You may provide access to Dracon Software's source code to Your employees and contractors solely as needed to exercise Your rights under this agreement, provided they are acting on Your behalf and are bound by terms at least as protective of Dracon as this agreement.
+
+---
+
+## 8. Competing Product Restriction
 
 **You may not use this Commercial License to develop, build, or enhance a Competing Product.**
 
@@ -88,7 +106,7 @@ Dracon reserves the right to verify compliance with this restriction and to term
 
 ---
 
-## 6. Term and Termination
+## 9. Term and Termination
 
 **This license is effective for one (1) year from the date of purchase or activation.**
 
@@ -96,16 +114,16 @@ It will renew automatically unless either party provides written notice of cance
 
 **Dracon may terminate this license immediately if You:**
 - Fail to pay the license fee when due
-- Violate the Competing Product restriction (Section 5)
+- Violate the Competing Product restriction (Section 8)
 - Exceed the permitted number of Licensed Instances
 - Attempt to transfer this license to a third party
 - Breach any other term of this agreement and fail to cure within thirty (30) days of written notice
 
-Upon termination, You must cease all use of Dracon Software under this license. Sections 7, 8, 9, 10, and 12 survive termination.
+Upon termination, You must cease all use of Dracon Software under this license. Sections 10, 11, 12, 13, and 15 survive termination.
 
 ---
 
-## 7. Disclaimer of Warranty
+## 10. Disclaimer of Warranty
 
 **DRACON SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.**
 
@@ -118,17 +136,17 @@ Licensor does not warrant that Dracon Software will meet Your requirements, that
 
 ---
 
-## 8. Limitation of Liability
+## 11. Limitation of Liability
 
 **TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, BUSINESS, OR GOODWILL) ARISING OUT OF OR RELATED TO THIS AGREEMENT OR YOUR USE OF DRACON SOFTWARE, EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.**
 
-**LICENSOR'S TOTAL CUMULATIVE LIABILITY UNDER THIS AGREEMENT SHALL NOT EXCEED THE ANNUAL LICENSE FEE PAID BY YOU FOR THE SPECIFIC LICENSE GIVING RISE TO THE CLAIM.**
+**LICENSOR'S TOTAL CUMULATIVE LIABILITY UNDER THIS AGREEMENT SHALL NOT EXCEED THE ANNUAL LICENSE FEE PAID BY YOU FOR THE SPECIFIC LICENSE GIVING RISE TO THE CLAIM, OR ONE HUNDRED POUNDS STERLING (GBP 100) IF YOU PAID NOTHING.**
 
 This limitation applies regardless of the form of action, whether in contract, tort, strict liability, or otherwise.
 
 ---
 
-## 9. Indemnification
+## 12. Indemnification
 
 **You agree to indemnify, defend, and hold harmless Licensor and its officers, directors, employees, and agents from and against any and all claims, damages, losses, costs, and expenses (including reasonable legal fees) arising out of or related to:**
 
@@ -138,7 +156,7 @@ This limitation applies regardless of the form of action, whether in contract, t
 
 ---
 
-## 10. Governing Law and Dispute Resolution
+## 13. Governing Law and Dispute Resolution
 
 **This agreement shall be governed by and construed in accordance with the laws of England and Wales.**
 
@@ -148,9 +166,9 @@ If a dispute arises, the parties will attempt to resolve it through good-faith n
 
 ---
 
-## 11. Compatibility with Open Source
+## 14. Compatibility with Open Source
 
-If You qualify under the AGPLv3 terms, You may use Dracon Software under AGPLv3 at no cost. The Commercial License and AGPLv3 are mutually exclusive: if You have an active Commercial License, the AGPLv3 terms do not apply to Your use. If Your Commercial License expires or is terminated, You must either renew or comply with AGPLv3.
+AGPLv3 is always available to any person or organization, at any scale, provided they comply with its terms. The Commercial License is an alternative — not a replacement — for organizations that prefer not to comply with AGPLv3's source disclosure or copyleft requirements. The Commercial License and AGPLv3 are mutually exclusive: if You have an active Commercial License, the AGPLv3 terms do not apply to Your use. If Your Commercial License expires or is terminated, You must either renew, comply with AGPLv3, or cease use.
 
 AGPLv3 remains available for:
 - Open source projects that distribute source code under AGPLv3
@@ -160,7 +178,7 @@ AGPLv3 remains available for:
 
 ---
 
-## 12. General Provisions
+## 15. General Provisions
 
 - **Entire Agreement**: This agreement constitutes the entire understanding between the parties and supersedes all prior agreements, representations, and understandings.
 
@@ -176,16 +194,16 @@ AGPLv3 remains available for:
 
 ---
 
-## 13. How to Purchase
+## 16. How to Purchase
 
-1. Contact **license@dracon.uk** with a brief description of Your use case and the number of engineers using Dracon Software
-2. We'll respond within two (2) business days with a tailored quote
-3. Upon agreement and payment, You'll receive a signed Commercial License certificate
+1. Visit **https://dracon.uk/licensing** to purchase online
+2. For custom agreements, custom pricing, or questions, contact **license@dracon.uk**
+3. Upon purchase, You'll receive a signed Commercial License certificate
 4. Retain the certificate for Your records as proof of license
 
 ---
 
-## 14. Enterprise and Custom Agreements
+## 17. Enterprise and Custom Agreements
 
 If Your organization has specific requirements — including custom pricing, on-premises deployment support, or bespoke contractual terms — contact **license@dracon.uk** to discuss a tailored agreement.
 
@@ -194,4 +212,4 @@ If You already have a signed agreement with Dracon, Your existing terms apply. C
 ---
 
 *Dracon — Sovereign tools. Compile-time guarantees.*
-*Website: https://dracon.uk | Email: license@dracon.uk*
+*Website: https://dracon.uk/licensing | Email: license@dracon.uk*
