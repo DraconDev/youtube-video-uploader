@@ -474,14 +474,36 @@ async fn main() -> anyhow::Result<()> {
                 client_id: Some(Zeroizing::new(client_id)),
                 client_secret: Some(Zeroizing::new(client_secret)),
                 api_key: None,
+                channel_id: None,
+                channel_name: None,
             };
 
             store.set(&workspace, creds);
             if store.default_workspace().is_none() {
                 store.set_default(&workspace);
             }
-            store.save(&passphrase)?;
-            output::auth_success(&workspace);
+
+            // Fetch channel info to confirm which channel was authorized
+            let youtube = YouTubeUploader::new(
+                Arc::clone(&store),
+                &passphrase,
+                &workspace,
+            );
+            match youtube.fetch_channel_info().await {
+                Ok((channel_id, channel_title)) => {
+                    if let Some(creds) = store.get_mut(&workspace) {
+                        creds.channel_id = Some(channel_id.clone());
+                        creds.channel_name = Some(channel_title.clone());
+                    }
+                    store.save(&passphrase)?;
+                    output::auth_success_with_channel(&workspace, &channel_title, &channel_id);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to fetch channel info: {e}");
+                    store.save(&passphrase)?;
+                    output::auth_success(&workspace);
+                }
+            }
         }
 
         Commands::Upload {

@@ -143,17 +143,18 @@ pub fn batch_item_error(err: &str) {
     print_error(err);
 }
 
-/// Print the workspace list.
-pub fn workspace_list(workspaces: &[(&str, bool)]) {
+/// Print the workspace list with optional channel names.
+pub fn workspace_list(workspaces: &[(&str, bool, Option<&str>)]) {
     if workspaces.is_empty() {
         info("No workspaces configured. Run: video-uploader auth");
     } else {
         sub_header("Workspaces");
-        for (name, is_default) in workspaces {
-            if *is_default {
-                eprintln!("  \u{2022} {name} (default)");
+        for (name, is_default, channel) in workspaces {
+            let default_marker = if *is_default { " (default)" } else { "" };
+            if let Some(ch) = channel {
+                eprintln!("  \u{2022} {name}{default_marker}  \u{2192} {ch}");
             } else {
-                eprintln!("  \u{2022} {name}");
+                eprintln!("  \u{2022} {name}{default_marker}");
             }
         }
     }
@@ -222,14 +223,6 @@ pub fn profile_removed(name: &str) {
     success(&format!("Profile '{name}' removed"));
 }
 
-/// Print the upload result as JSON (for automation/CI).
-pub fn upload_result_json(result: &video_uploader::UploadResult) {
-    match serde_json::to_string_pretty(result) {
-        Ok(json) => println!("{json}"),
-        Err(e) => eprintln!("Error serializing result: {e}"),
-    }
-}
-
 /// Print the batch dry run preview.
 pub fn dry_run(entries: &[(String, String, Option<String>)]) {
     sub_header(&format!("Dry Run \u{2014} {} video(s)", entries.len()));
@@ -247,6 +240,18 @@ pub fn auth_success(workspace: &str) {
     success(&format!("Workspace '{workspace}' configured successfully!"));
 }
 
+/// Print the auth success message with channel info.
+pub fn auth_success_with_channel(workspace: &str, channel_name: &str, channel_id: &str) {
+    eprintln!();
+    header("Authorization Complete");
+    kv("Workspace", workspace);
+    kv("Channel", channel_name);
+    kv("Channel ID", channel_id);
+    eprintln!();
+    success("You can now upload to this channel.");
+    eprintln!();
+}
+
 /// Print workspace operation results.
 pub fn workspace_default_set(name: &str) {
     success(&format!("Default workspace set to '{name}'"));
@@ -258,4 +263,12 @@ pub fn workspace_renamed(old: &str, new: &str) {
 
 pub fn workspace_removed(name: &str) {
     success(&format!("Workspace '{name}' removed"));
+}
+
+/// Print the channel info result.
+pub fn channel_info(workspace: &str, channel_name: &str, channel_id: &str) {
+    sub_header(&format!("Channel: {channel_name}"));
+    kv("Workspace", workspace);
+    kv("Channel ID", channel_id);
+    eprintln!();
 }

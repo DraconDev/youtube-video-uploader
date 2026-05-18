@@ -73,6 +73,8 @@ impl PlatformCredentials {
             token_expires_at: None,
             client_id: client_id.map(Zeroizing::new),
             client_secret: client_secret.map(Zeroizing::new),
+            channel_id: None,
+            channel_name: None,
         }
     }
 }

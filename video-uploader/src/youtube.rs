@@ -298,28 +298,28 @@ impl YouTubeUploader {
             .bearer_auth(&access_token)
             .send()
             .await
-            .map_err(|e| UploadError::Http(e.to_string()))?;
+            .map_err(UploadError::Http)?;
 
         if !response.status().is_success() {
-            let status = response.status();
+            let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
-            return Err(UploadError::Http(format!(
-                "channels.list failed ({}): {}",
-                status, body
-            )));
+            return Err(UploadError::PlatformApi {
+                status,
+                message: format!("channels.list: {body}"),
+            });
         }
 
         let body: serde_json::Value = response
             .json()
             .await
-            .map_err(|e| UploadError::Http(format!("channels.list parse error: {e}")))?;
+            .map_err(UploadError::Http)?;
 
         let items = body["items"].as_array().ok_or_else(|| {
-            UploadError::Http("channels.list returned no items".to_string())
+            UploadError::Auth("channels.list returned no items — no YouTube channel found for this account".to_string())
         })?;
 
         if items.is_empty() {
-            return Err(UploadError::Http(
+            return Err(UploadError::Auth(
                 "No YouTube channel found for this account".to_string(),
             ));
         }
