@@ -15,6 +15,7 @@ pub use net::is_private_ip;
 pub use progress::{NoopProgressListener, ProgressListener, StderrProgressListener};
 pub use resume::UploadState;
 pub use profile::UploadProfile;
+pub use profile::VideoMeta;
 pub use upload::{UploadResult, VideoUpload, Visibility};
 pub use youtube::YouTubeUploader;
 pub use zeroize::Zeroizing;

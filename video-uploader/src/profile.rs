@@ -6,7 +6,7 @@
 use crate::UploadError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// An upload profile loaded from a TOML file.
 ///
@@ -45,6 +45,70 @@ pub struct UploadProfile {
 
     /// Scheduled publish time (ISO 8601, e.g. "2026-05-20T09:00:00Z").
     pub publish_at: Option<String>,
+}
+
+/// Per-video metadata loaded from a `.meta.toml` file.
+///
+/// Unlike profiles (which provide defaults), meta TOML provides the **primary** metadata
+/// for a specific video. Fields here override profile defaults but are overridden by
+/// explicit CLI flags.
+///
+/// Auto-discovery: if `video.mp4` has a `video.meta.toml` next to it, it's loaded
+/// automatically.
+///
+/// # Example
+///
+/// ```toml
+/// # video.meta.toml
+/// title = "Let's Play Rust - Episode 1"
+/// description = "Building a CLI tool from scratch."
+/// tags = ["rust", "programming", "tutorial"]
+/// category = "20"
+/// visibility = "unlisted"
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct VideoMeta {
+    /// Video title.
+    pub title: Option<String>,
+
+    /// Video description.
+    pub description: Option<String>,
+
+    /// Tags for the video.
+    pub tags: Option<Vec<String>>,
+
+    /// Video visibility: "private", "unlisted", or "public".
+    pub visibility: Option<String>,
+
+    /// YouTube category ID.
+    pub category: Option<String>,
+
+    /// Whether the video is made for kids.
+    pub made_for_kids: Option<bool>,
+
+    /// License: "youtube" or "creative-common".
+    pub license: Option<String>,
+
+    /// BCP-47 language code.
+    pub language: Option<String>,
+
+    /// Whether the video contains AI/synthetic media.
+    pub contains_synthetic_media: Option<bool>,
+
+    /// Whether the video can be embedded on other sites.
+    pub embeddable: Option<bool>,
+
+    /// Whether view counts are publicly visible.
+    pub public_stats_viewable: Option<bool>,
+
+    /// Text appended to the description.
+    pub description_suffix: Option<String>,
+
+    /// Scheduled publish time (ISO 8601).
+    pub publish_at: Option<String>,
+
+    /// Profile name to use for this video.
+    pub profile: Option<String>,
 }
 
 impl UploadProfile {
@@ -123,6 +187,89 @@ impl UploadProfile {
     }
 }
 
+impl VideoMeta {
+    /// Load a meta TOML from an explicit path.
+    pub fn load_from(path: &Path) -> Result<Self, UploadError> {
+        if !path.exists() {
+            return Ok(Self::default());
+        }
+        let content = std::fs::read_to_string(path).map_err(|e| {
+            UploadError::Config(format!("Failed to read meta file '{}': {e}", path.display()))
+        })?;
+        let meta: Self = toml::from_str(&content).map_err(|e| {
+            UploadError::Config(format!("Failed to parse meta file '{}': {e}", path.display()))
+        })?;
+        Ok(meta)
+    }
+
+    /// Auto-discover a `.meta.toml` file next to the video file.
+    ///
+    /// For `video.mp4`, looks for `video.meta.toml` in the same directory.
+    /// Returns `None` if no meta file is found.
+    pub fn discover(video_path: &Path) -> Option<PathBuf> {
+        let stem = video_path.file_stem()?;
+        let dir = video_path.parent()?;
+        let meta_path = dir.join(format!("{}.meta.toml", stem.to_string_lossy()));
+        if meta_path.exists() {
+            Some(meta_path)
+        } else {
+            None
+        }
+    }
+
+    /// Apply meta TOML values to a `VideoUpload`.
+    ///
+    /// Meta values are applied as the base; CLI flags should be applied after
+    /// to override. Only non-`None` fields from the meta are set.
+    /// Tags are **replaced** (not merged) — meta tags are the primary tags for this video.
+    pub fn apply_to(&self, mut video: crate::VideoUpload) -> crate::VideoUpload {
+        if let Some(ref title) = self.title {
+            video = video.with_title(title);
+        }
+        if let Some(ref desc) = self.description {
+            video = video.with_description(desc);
+        }
+        if let Some(ref tags) = self.tags {
+            video = video.with_tags(tags.clone());
+        }
+        if let Some(ref vis) = self.visibility
+            && let Ok(v) = vis.parse()
+        {
+            video = video.with_visibility(v);
+        }
+        if let Some(ref cat) = self.category {
+            video = video.with_category(cat);
+        }
+        if let Some(kids) = self.made_for_kids {
+            video = video.with_made_for_kids(kids);
+        }
+        if let Some(ref lic) = self.license
+            && let Ok(l) = lic.parse()
+        {
+            video = video.with_license(l);
+        }
+        if let Some(ref lang) = self.language {
+            video = video.with_language(lang);
+        }
+        if let Some(flag) = self.contains_synthetic_media {
+            video = video.with_contains_synthetic_media(flag);
+        }
+        if let Some(flag) = self.embeddable {
+            video = video.with_embeddable(flag);
+        }
+        if let Some(flag) = self.public_stats_viewable {
+            video = video.with_public_stats_viewable(flag);
+        }
+        if let Some(ref suffix) = self.description_suffix {
+            video = video.with_description_suffix(suffix);
+        }
+        if let Some(ref dt) = self.publish_at {
+            video = video.with_publish_at(dt);
+        }
+        video
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,5 +340,128 @@ publish_at = "2026-05-20T09:00:00Z"
         // (we can't guarantee no default.toml in test env, but the logic is tested)
         let p = UploadProfile::resolve(None);
         assert!(p.is_ok());
+    }
+
+    // -- VideoMeta tests --
+
+    #[test]
+    fn test_video_meta_default_is_all_none() {
+        let m = VideoMeta::default();
+        assert!(m.title.is_none());
+        assert!(m.description.is_none());
+        assert!(m.tags.is_none());
+        assert!(m.visibility.is_none());
+        assert!(m.category.is_none());
+        assert!(m.made_for_kids.is_none());
+        assert!(m.license.is_none());
+        assert!(m.language.is_none());
+        assert!(m.contains_synthetic_media.is_none());
+        assert!(m.embeddable.is_none());
+        assert!(m.public_stats_viewable.is_none());
+        assert!(m.description_suffix.is_none());
+        assert!(m.publish_at.is_none());
+        assert!(m.profile.is_none());
+    }
+
+    #[test]
+    fn test_video_meta_parse_full() {
+        let toml = r#"
+title = "My Video"
+description = "A great video"
+tags = ["rust", "programming"]
+visibility = "unlisted"
+category = "20"
+made_for_kids = false
+license = "creative-common"
+language = "en"
+contains_synthetic_media = true
+embeddable = false
+public_stats_viewable = true
+description_suffix = "\nSubscribe!"
+publish_at = "2026-05-20T09:00:00Z"
+profile = "gaming"
+"#;
+        let m: VideoMeta = toml::from_str(toml).unwrap();
+        assert_eq!(m.title.as_deref(), Some("My Video"));
+        assert_eq!(m.description.as_deref(), Some("A great video"));
+        assert_eq!(m.tags.as_ref().unwrap().len(), 2);
+        assert_eq!(m.visibility.as_deref(), Some("unlisted"));
+        assert_eq!(m.category.as_deref(), Some("20"));
+        assert_eq!(m.made_for_kids, Some(false));
+        assert_eq!(m.license.as_deref(), Some("creative-common"));
+        assert_eq!(m.language.as_deref(), Some("en"));
+        assert_eq!(m.contains_synthetic_media, Some(true));
+        assert_eq!(m.embeddable, Some(false));
+        assert_eq!(m.public_stats_viewable, Some(true));
+        assert_eq!(m.description_suffix.as_deref(), Some("\nSubscribe!"));
+        assert_eq!(m.publish_at.as_deref(), Some("2026-05-20T09:00:00Z"));
+        assert_eq!(m.profile.as_deref(), Some("gaming"));
+    }
+
+    #[test]
+    fn test_video_meta_discover_with_meta_file() {
+        let dir = std::env::temp_dir().join("vu_test_meta_discover");
+        std::fs::create_dir_all(&dir).unwrap();
+        let video_path = dir.join("episode.mp4");
+        let meta_path = dir.join("episode.meta.toml");
+        std::fs::write(&video_path, b"fake").unwrap();
+        std::fs::write(&meta_path, b"title = \"Test\"").unwrap();
+
+        let discovered = VideoMeta::discover(&video_path);
+        assert!(discovered.is_some());
+        assert_eq!(discovered.unwrap(), meta_path);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_video_meta_discover_no_meta_file() {
+        let dir = std::env::temp_dir().join("vu_test_meta_no_discover");
+        std::fs::create_dir_all(&dir).unwrap();
+        let video_path = dir.join("episode.mp4");
+        std::fs::write(&video_path, b"fake").unwrap();
+
+        let discovered = VideoMeta::discover(&video_path);
+        assert!(discovered.is_none());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_video_meta_apply_to_overrides_fields() {
+        use crate::{VideoUpload, Visibility};
+
+        let meta: VideoMeta = toml::from_str(r#"
+title = "Meta Title"
+description = "Meta Description"
+tags = ["meta", "tags"]
+visibility = "unlisted"
+category = "20"
+made_for_kids = true
+license = "creative-common"
+language = "es"
+"#).unwrap();
+
+        let video = VideoUpload::new("/tmp/video.mp4", "Original Title");
+        let video = meta.apply_to(video);
+
+        assert_eq!(video.title(), "Meta Title");
+        assert_eq!(video.description(), Some("Meta Description"));
+        assert_eq!(video.tags(), &["meta", "tags"]);
+        assert_eq!(video.visibility(), Visibility::Unlisted);
+        assert_eq!(video.category_id(), Some("20"));
+        assert_eq!(video.made_for_kids(), Some(true));
+    }
+
+    #[test]
+    fn test_video_meta_apply_to_skips_none() {
+        use crate::VideoUpload;
+
+        let meta = VideoMeta::default();
+        let video = VideoUpload::new("/tmp/video.mp4", "Keep This");
+        let video = meta.apply_to(video);
+
+        assert_eq!(video.title(), "Keep This");
+        assert!(video.description().is_none());
     }
 }

@@ -130,6 +130,12 @@ impl VideoUpload {
         self
     }
 
+    /// Override the title (e.g. from a meta TOML file).
+    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+        self.title = title.into();
+        self
+    }
+
     pub fn with_tags(mut self, tags: Vec<String>) -> Self {
         self.tags = tags;
         self

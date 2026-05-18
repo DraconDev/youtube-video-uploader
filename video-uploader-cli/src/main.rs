@@ -64,8 +64,8 @@ enum Commands {
         #[arg(long, help = "Comma-separated tags")]
         tags: Option<String>,
 
-        #[arg(long, short, default_value = "private", help = "Visibility: public, unlisted, private")]
-        visibility: VisibilityArg,
+        #[arg(long, short, help = "Visibility: public, unlisted, private (default: private)")]
+        visibility: Option<VisibilityArg>,
 
         #[arg(long, help = "YouTube category ID (default: 22 People & Blogs)")]
         category: Option<String>,
@@ -93,6 +93,9 @@ enum Commands {
 
         #[arg(long, help = "Text to append to the description")]
         description_suffix: Option<String>,
+
+        #[arg(long, help = "Path to per-video metadata TOML (auto-discovered: <video>.meta.toml)")]
+        meta: Option<String>,
     },
     /// List configured workspaces
     List,
@@ -434,22 +437,50 @@ async fn main() -> anyhow::Result<()> {
             public_stats_viewable,
             publish_at,
             description_suffix,
+            meta,
         } => {
             let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
             let workspace = resolve_workspace(&*store.lock().await, cli.workspace.as_deref())?;
             let youtube = YouTubeUploader::new(store, &passphrase, &workspace);
             let file = expand_tilde(&file);
 
-            // Load profile (explicit > default.toml > built-in defaults)
-            let profile = video_uploader::UploadProfile::resolve(cli.profile.as_deref())?;
+            // 1. Load meta TOML: explicit --meta flag > auto-discover <video>.meta.toml
+            let meta_path = meta.as_deref().map(std::path::PathBuf::from)
+                .or_else(|| video_uploader::VideoMeta::discover(std::path::Path::new(&file)));
+            let video_meta = if let Some(ref path) = meta_path {
+                output::info(&format!("Loading metadata from {}", path.display()));
+                video_uploader::VideoMeta::load_from(path)?
+            } else {
+                video_uploader::VideoMeta::default()
+            };
 
-            let mut video = VideoUpload::new(&file, &title)
-                .with_description(description.unwrap_or_default())
-                .with_tags(
-                    tags.map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
-                        .unwrap_or_default(),
-                )
-                .with_visibility(visibility.into());
+            // 2. Determine profile: meta can specify a profile, CLI --profile overrides
+            let profile_name = cli.profile.as_deref().or(video_meta.profile.as_deref());
+            let profile = video_uploader::UploadProfile::resolve(profile_name)?;
+
+            // 3. Build video: built-in defaults → profile → meta TOML → CLI flags
+            //    (each layer overrides the previous)
+            //    Use empty title initially — all fields come from the resolution layers.
+            let mut video = VideoUpload::new(&file, "");
+
+            // Apply profile defaults (lowest priority)
+            video = video.apply_profile(&profile);
+
+            // Apply meta TOML (overrides profile)
+            video = video_meta.apply_to(video);
+
+            // Apply explicit CLI flags (highest priority — always wins)
+            // Title is a required CLI arg, so it always overrides meta.
+            video = video.with_title(&title);
+            if let Some(ref desc) = description {
+                video = video.with_description(desc);
+            }
+            if let Some(ref t) = tags {
+                video = video.with_tags(t.split(',').map(|s| s.trim().to_string()).collect());
+            }
+            if let Some(vis) = visibility {
+                video = video.with_visibility(vis.into());
+            }
 
             if let Some(cat) = category {
                 video = video.with_category(&cat);
@@ -480,9 +511,6 @@ async fn main() -> anyhow::Result<()> {
             if let Some(ref suffix) = description_suffix {
                 video = video.with_description_suffix(suffix);
             }
-
-            // Apply profile defaults for any unset fields
-            video = video.apply_profile(&profile);
 
             let progress = Arc::new(StderrProgressListener);
             match youtube.upload(&video, Some(progress.clone())).await {
