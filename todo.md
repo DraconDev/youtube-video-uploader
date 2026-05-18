@@ -21,7 +21,7 @@
 - [x] Per-video `.meta.toml` — `--meta` flag, auto-discover, `VideoMeta` struct
 - [x] Meta can specify a `profile` name
 - [x] Full resolution: CLI flag > meta TOML > profile TOML > built-in default
-- [x] `--output json` — machine-readable JSON for single upload + batch summary
+- [x] `--output json` — machine-readable JSON for single upload + batch (with individual results)
 - [x] `--version` flag
 - [x] Pretty-print output (`output.rs`) — boxed headers, key-value layout, icons
 - [x] Progress bar with upload speed + ETA + duration on completion
@@ -30,6 +30,8 @@
 - [x] Batch CSV `profile` column — per-row profile selection
 - [x] Batch supports meta TOML + profile resolution (same as single upload)
 - [x] Batch visibility default = Private (was incorrectly Public)
+- [x] Batch CSV validation: warn about missing optional columns (description, tags, visibility, workspace, profile)
+- [x] Batch JSON output includes individual `results` array with per-video UploadResult
 - [x] Auth code flow as fallback, shared `TokenResponse`, retry for transient errors
 - [x] Default visibility = Private everywhere
 - [x] `dotenvy` for `.env` OAuth2 credentials
@@ -41,13 +43,13 @@
 ## 🔲 Remaining
 
 - [ ] Channel selection within a Google account (brand accounts under same login)
-- [ ] Batch CSV validation: warn about missing optional columns vs required ones
-- [ ] Collect individual `UploadResult`s from batch tasks for full JSON output
+  - Requires YouTube API `channels.list?mine=true` + interactive picker
+  - Significant new API surface; deferred to v0.4
 
 ---
 
 ## Current Status
 
 - **174 tests**, 0 failures, clippy clean (`-D warnings`)
-- **Version 0.3.5**, Edition 2024, Rust 1.82+
+- **Version 0.3.x**, Edition 2024, Rust 1.82+
 - **Full automation pipeline**: profile TOML → meta TOML → CLI → JSON output
