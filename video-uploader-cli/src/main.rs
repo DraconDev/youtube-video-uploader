@@ -787,7 +787,11 @@ async fn main() -> anyhow::Result<()> {
             let default = store.default_workspace();
             let workspaces: Vec<_> = store
                 .workspaces()
-                .map(|w| (w.as_str(), default == Some(w)))
+                .map(|w| {
+                    let is_default = default == Some(w);
+                    let channel = store.get(w).and_then(|c| c.channel_name.as_deref());
+                    (w.as_str(), is_default, channel)
+                })
                 .collect();
             output::workspace_list(&workspaces);
         }
