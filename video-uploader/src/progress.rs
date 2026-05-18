@@ -99,8 +99,6 @@ impl ProgressListener for StderrProgressListener {
                 let remaining_bytes = total - uploaded;
                 let eta_secs = remaining_bytes as f64 / speed;
                 format_duration(eta_secs)
-            } else if uploaded >= total {
-                "--".to_string()
             } else {
                 "--".to_string()
             };
