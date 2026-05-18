@@ -58,29 +58,117 @@ impl ProgressListener for NoopProgressListener {
 /// A progress listener that prints to stderr.
 /// Uses carriage return (`\r`) when attached to a TTY for inline progress,
 /// falls back to full-line output when output is piped/redirected.
-pub struct StderrProgressListener;
+/// Shows upload speed and ETA when progress is reported multiple times.
+pub struct StderrProgressListener {
+    start: std::time::Instant,
+    last_uploaded: std::sync::atomic::AtomicU64,
+}
+
+impl Default for StderrProgressListener {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StderrProgressListener {
+    /// Create a new stderr progress listener.
+    pub fn new() -> Self {
+        Self {
+            start: std::time::Instant::now(),
+            last_uploaded: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+}
 
 impl ProgressListener for StderrProgressListener {
     fn on_progress(&self, uploaded: u64, total: u64) {
         if total > 0 {
             let pct = (uploaded as f64 / total as f64) * 100.0;
-            if std::io::stderr().is_terminal() {
-                eprint!("\r  {:>6.2}% ({}/{} bytes)", pct, uploaded, total);
+            let elapsed = self.start.elapsed().as_secs_f64();
+
+            // Calculate speed and ETA
+            let speed_str = if elapsed > 0.0 && uploaded > 0 {
+                let speed = uploaded as f64 / elapsed;
+                format_speed(speed)
             } else {
-                eprintln!("  {:>6.2}% ({}/{} bytes)", pct, uploaded, total);
+                "--".to_string()
+            };
+
+            let eta_str = if uploaded > 0 && uploaded < total && elapsed > 0.0 {
+                let speed = uploaded as f64 / elapsed;
+                let remaining_bytes = total - uploaded;
+                let eta_secs = remaining_bytes as f64 / speed;
+                format_duration(eta_secs)
+            } else if uploaded >= total {
+                "--".to_string()
+            } else {
+                "--".to_string()
+            };
+
+            if std::io::stderr().is_terminal() {
+                eprint!(
+                    "\r  {:>6.2}% {}/s  ETA {} ({}/{})",
+                    pct, speed_str, eta_str, uploaded, total
+                );
+            } else {
+                eprintln!(
+                    "  {:>6.2}% {}/s  ETA {} ({}/{})",
+                    pct, speed_str, eta_str, uploaded, total
+                );
             }
+
+            self.last_uploaded.store(uploaded, std::sync::atomic::Ordering::Relaxed);
         }
     }
 
     fn on_complete(&self, result: &UploadResult) {
+        let elapsed = self.start.elapsed();
         if std::io::stderr().is_terminal() {
-            eprintln!("\n  Uploaded to {}: {}", result.workspace, result.url);
+            eprintln!(
+                "\n  {} uploaded to {}: {}",
+                format_duration(elapsed.as_secs_f64()),
+                result.workspace,
+                result.url
+            );
         } else {
-            eprintln!("[complete] {}: {}", result.workspace, result.url);
+            eprintln!(
+                "[complete] {}: {} ({})",
+                result.workspace,
+                result.url,
+                format_duration(elapsed.as_secs_f64())
+            );
         }
     }
 
     fn on_error(&self, error: &UploadError) {
         eprintln!("  Upload failed: {}", error);
+    }
+}
+
+/// Format bytes/second as a human-readable string.
+fn format_speed(bytes_per_sec: f64) -> String {
+    if bytes_per_sec >= 1_000_000_000.0 {
+        format!("{:.1} GB", bytes_per_sec / 1_000_000_000.0)
+    } else if bytes_per_sec >= 1_000_000.0 {
+        format!("{:.1} MB", bytes_per_sec / 1_000_000.0)
+    } else if bytes_per_sec >= 1_000.0 {
+        format!("{:.0} KB", bytes_per_sec / 1_000.0)
+    } else {
+        format!("{:.0} B", bytes_per_sec)
+    }
+}
+
+/// Format seconds as a human-readable duration.
+fn format_duration(secs: f64) -> String {
+    if secs.is_nan() || secs.is_infinite() || secs < 0.0 {
+        return "--".to_string();
+    }
+    let total_secs = secs as u64;
+    if total_secs < 60 {
+        format!("{}s", total_secs)
+    } else if total_secs < 3600 {
+        format!("{}m {}s", total_secs / 60, total_secs % 60)
+    } else {
+        format!("{}h {}m", total_secs / 3600, (total_secs % 3600) / 60)
     }
 }
