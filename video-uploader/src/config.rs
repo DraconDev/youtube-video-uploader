@@ -487,6 +487,8 @@ mod tests {
         assert!(creds.token_expires_at.is_none());
         assert!(creds.client_id.is_none());
         assert!(creds.client_secret.is_none());
+        assert!(creds.channel_id.is_none());
+        assert!(creds.channel_name.is_none());
     }
 
     #[test]
