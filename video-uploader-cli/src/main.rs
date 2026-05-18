@@ -723,15 +723,19 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let mut failures = 0u32;
+            let mut batch_ok = Vec::new();
+            let mut batch_err = Vec::new();
             for handle in handles {
                 let result = handle
                     .await
                     .map_err(|e| anyhow::anyhow!("Task join: {e}"))?;
-                if result > 0 {
-                    failures += result;
+                match result {
+                    Ok(r) => batch_ok.push(r),
+                    Err(e) => {
+                        failures += 1;
+                        batch_err.push(e);
+                    }
                 }
-                // Note: we don't collect individual video results from spawned tasks yet.
-                // For full JSON batch output, we'd need to return Result<UploadResult, String> instead of u32.
             }
 
             if failures > 0 {
@@ -749,6 +753,7 @@ async fn main() -> anyhow::Result<()> {
                         "total": total,
                         "succeeded": succeeded,
                         "failed": validation_errors.len(),
+                        "results": batch_ok,
                     });
                     println!("{summary}");
                 }
