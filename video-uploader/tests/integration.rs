@@ -271,6 +271,8 @@ fn test_credential_store_wrong_passphrase_returns_error() {
             token_expires_at: None,
             client_id: None,
             client_secret: None,
+                channel_id: None,
+                channel_name: None,
         },
     );
 
@@ -323,6 +325,8 @@ fn test_credential_store_empty_passphrase_works() {
             token_expires_at: None,
             client_id: None,
             client_secret: None,
+                channel_id: None,
+                channel_name: None,
         },
     );
 
@@ -356,6 +360,8 @@ fn test_credential_store_special_chars_in_passphrase() {
             token_expires_at: None,
             client_id: None,
             client_secret: None,
+                channel_id: None,
+                channel_name: None,
         },
     );
 
@@ -499,6 +505,8 @@ fn test_credential_store_wrong_passphrase_v2() {
             token_expires_at: None,
             client_id: None,
             client_secret: None,
+                channel_id: None,
+                channel_name: None,
         },
     );
 

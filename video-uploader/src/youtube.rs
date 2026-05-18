@@ -289,9 +289,7 @@ impl YouTubeUploader {
     pub async fn fetch_channel_info(&self) -> Result<(String, String), UploadError> {
         let access_token = self.get_access_token().await?;
 
-        let url = format!(
-            "https://www.googleapis.com/youtube/v3/channels?mine=true&part=snippet"
-        );
+        let url = "https://www.googleapis.com/youtube/v3/channels?mine=true&part=snippet".to_string();
 
         let response = self.client
             .get(&url)

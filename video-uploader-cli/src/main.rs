@@ -489,6 +489,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // Fetch channel info to confirm which channel was authorized
+            let store = Arc::new(Mutex::new(store));
             let youtube = YouTubeUploader::new(
                 Arc::clone(&store),
                 &passphrase,
@@ -496,16 +497,18 @@ async fn main() -> anyhow::Result<()> {
             );
             match youtube.fetch_channel_info().await {
                 Ok((channel_id, channel_title)) => {
-                    if let Some(creds) = store.get_mut(&workspace) {
+                    let mut guard = store.lock().await;
+                    if let Some(creds) = guard.get_mut(&workspace) {
                         creds.channel_id = Some(channel_id.clone());
                         creds.channel_name = Some(channel_title.clone());
                     }
-                    store.save(&passphrase)?;
+                    guard.save(&passphrase)?;
+                    drop(guard);
                     output::auth_success_with_channel(&workspace, &channel_title, &channel_id);
                 }
                 Err(e) => {
                     tracing::warn!("Failed to fetch channel info: {e}");
-                    store.save(&passphrase)?;
+                    store.lock().await.save(&passphrase)?;
                     output::auth_success(&workspace);
                 }
             }
