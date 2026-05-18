@@ -123,6 +123,7 @@ impl VideoUpload {
             public_stats_viewable: None,
             description_suffix: None,
             publish_at: None,
+            recording_date: None,
         }
     }
 
