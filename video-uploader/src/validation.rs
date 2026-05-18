@@ -15,7 +15,9 @@ pub const VALID_EXTENSIONS: &[&str] = &[
 /// - File exists and is readable
 /// - File size is within YouTube's 128 GiB limit
 /// - File extension indicates a supported video format
-pub async fn validate(video: &VideoUpload) -> Result<(), UploadError> {
+/// Validate a video for upload (file existence, extension, size, title).
+///
+/// Returns `Ok(())` if the video passes all checks, or an `UploadError` describing the issue.
     let path = &video.file_path;
 
     // File existence (async)
@@ -74,7 +76,7 @@ pub async fn validate(video: &VideoUpload) -> Result<(), UploadError> {
 }
 
 /// Human-readable YouTube size limit.
-pub fn size_limit_description() -> &'static str {
+/// Returns a human-readable description of the YouTube file size limit ("128 GiB").
     "128 GiB"
 }
 

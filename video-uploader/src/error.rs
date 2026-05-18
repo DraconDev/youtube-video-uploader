@@ -1,4 +1,6 @@
 /// Errors that can occur during video upload.
+///
+/// All variants are non-exhaustive to allow future additions without breaking changes.
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
 pub enum UploadError {
@@ -37,6 +39,7 @@ pub enum UploadError {
 }
 
 impl UploadError {
+    /// Returns `true` if this error is likely transient and worth retrying.
     pub fn is_retryable(&self) -> bool {
         match self {
             UploadError::Http(_) => true,

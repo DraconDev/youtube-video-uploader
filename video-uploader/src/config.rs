@@ -37,6 +37,23 @@ pub const FORMAT_VERSION_V2: u8 = 0x02;
 /// ```
 ///
 /// Old flat format (`[youtube]` at top level) is auto-migrated on load.
+/// Per-workspace credential storage.
+///
+/// Each workspace holds a set of OAuth2 credentials for a single YouTube account.
+/// Workspaces are stored in a single AES-256-GCM encrypted file (`credentials.enc`)
+/// protected by a user passphrase with PBKDF2 key derivation (100K iterations).
+///
+/// # Workspace format (v0.2+)
+///
+/// ```toml
+/// default_workspace = "youtube"
+///
+/// [workspaces.youtube]
+/// refresh_token = "..."
+/// client_id = "..."
+/// ```
+///
+/// Old flat format (`[youtube]` at top level) is auto-migrated on load.
 #[derive(Serialize, Deserialize, Default, Zeroize)]
 pub struct PlatformCredentials {
     pub api_key: Option<Zeroizing<String>>,
@@ -60,6 +77,10 @@ impl PlatformCredentials {
     /// Create credentials with the given OAuth2 fields.
     ///
     /// All string fields are wrapped in `Zeroizing<String>` for secure memory handling.
+    /// Create credentials with the given OAuth2 fields.
+    ///
+    /// All string fields are wrapped in `Zeroizing<String>` for secure memory handling.
+    /// `channel_id` and `channel_name` are left as `None` (fetched later via `fetch_channel_info`).
     pub fn new(
         refresh_token: Option<String>,
         access_token: Option<String>,
@@ -109,6 +130,32 @@ impl Drop for PlatformCredentials {
     }
 }
 
+/// The encrypted on-disk credential store.
+///
+/// Workspaces are named sets of credentials (e.g. `"youtube"`, `"cooking-channel"`).
+/// One workspace may be marked as the default.
+///
+/// # Usage
+///
+/// ```no_run
+/// use video_uploader::CredentialStore;
+///
+/// let store = CredentialStore::load("my-passphrase").unwrap();
+/// let creds = store.get("youtube").expect("youtube workspace not found");
+/// println!("Refresh token: {:?}", creds.refresh_token);
+/// ```
+///
+/// # Multi-channel setup
+///
+/// ```no_run
+/// use video_uploader::config::PlatformCredentials;
+/// use video_uploader::CredentialStore;
+///
+/// let mut store = CredentialStore::default();
+/// store.set("gaming", PlatformCredentials::default());
+/// store.set_default("gaming");
+/// store.save("my-passphrase").unwrap();
+/// ```
 /// The encrypted on-disk credential store.
 ///
 /// Workspaces are named sets of credentials (e.g. `"youtube"`, `"cooking-channel"`).
@@ -265,6 +312,10 @@ impl CredentialStore {
         ))
     }
 
+    /// Load the credential store from the default path using a passphrase.
+    ///
+    /// Automatically detects and migrates v0.1 (flat) format to v0.2 (workspace) format.
+    /// Re-encrypts the file if migration was needed.
     pub fn load(passphrase: &str) -> Result<Self, UploadError> {
         let path = Self::path()?;
         if !path.exists() {
@@ -285,6 +336,9 @@ impl CredentialStore {
         Ok(store)
     }
 
+    /// Load the credential store from a specific path using a passphrase.
+    ///
+    /// Useful for testing or custom credential file locations.
     pub fn load_from_path(passphrase: &str, path: &std::path::Path) -> Result<Self, UploadError> {
         if !path.exists() {
             return Ok(Self::default());
@@ -340,11 +394,13 @@ impl CredentialStore {
             .map_err(|e| UploadError::Encryption(format!("Decrypt failed: {e}")))
     }
 
+    /// Save the credential store to the default path, encrypting with the passphrase.
     pub fn save(&self, passphrase: &str) -> Result<(), UploadError> {
         let path = Self::path()?;
         self.save_to_path(passphrase, &path)
     }
 
+    /// Save the credential store to a specific path, encrypting with the passphrase.
     pub fn save_to_path(
         &self,
         passphrase: &str,
@@ -401,34 +457,42 @@ impl CredentialStore {
         Ok(())
     }
 
+    /// Get a reference to the credentials for a workspace.
     pub fn get(&self, name: &str) -> Option<&PlatformCredentials> {
         self.workspaces.get(name)
     }
 
+    /// Get a mutable reference to the credentials for a workspace.
     pub fn get_mut(&mut self, name: &str) -> Option<&mut PlatformCredentials> {
         self.workspaces.get_mut(name)
     }
 
+    /// Set (insert or replace) credentials for a workspace.
     pub fn set(&mut self, name: impl Into<String>, creds: PlatformCredentials) {
         self.workspaces.insert(name.into(), creds);
     }
 
+    /// Remove a workspace's credentials, returning them if they existed.
     pub fn remove(&mut self, name: &str) -> Option<PlatformCredentials> {
         self.workspaces.remove(name)
     }
 
+    /// Iterate over all workspace names.
     pub fn workspaces(&self) -> impl Iterator<Item = &String> {
         self.workspaces.keys()
     }
 
+    /// Get the name of the default workspace, if one is set.
     pub fn default_workspace(&self) -> Option<&str> {
         self.default_workspace.as_deref()
     }
 
+    /// Clear the default workspace marker.
     pub fn clear_default(&mut self) {
         self.default_workspace = None;
     }
 
+    /// Set the default workspace by name.
     pub fn set_default(&mut self, name: &str) {
         self.default_workspace = Some(name.to_string());
     }

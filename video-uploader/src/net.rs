@@ -4,10 +4,16 @@ use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr};
 use std::time::Duration;
 
+/// Build an HTTP client with a 30-second timeout.
+///
+/// Panics if the client cannot be constructed (e.g. TLS backend unavailable).
 pub fn build_http_client() -> reqwest::Client {
     build_http_client_with_timeout(30)
 }
 
+/// Build an HTTP client with a custom timeout in seconds.
+///
+/// Panics if the client cannot be constructed (e.g. TLS backend unavailable).
 pub fn build_http_client_with_timeout(secs: u64) -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(secs))
@@ -16,7 +22,9 @@ pub fn build_http_client_with_timeout(secs: u64) -> reqwest::Client {
         .expect("failed to build HTTP client — this should never happen in normal operation")
 }
 
-pub async fn retry<F, Fut, T>(operation: F, max_retries: u32) -> Result<T, UploadError>
+/// Retry an async operation up to `max_retries` times with exponential backoff.
+///
+/// Only retries on errors where `UploadError::is_retryable()` returns `true`.
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<T, UploadError>>,
@@ -53,6 +61,9 @@ where
     }))
 }
 
+/// Check if a host string resolves to a private (RFC 1918) IP address.
+///
+/// Used for SSRF protection — prevents the uploader from sending tokens to internal hosts.
 pub fn is_private_ip(host: &str) -> bool {
     if host == "localhost" || host == "127.0.0.1" || host == "::1" {
         return true;
