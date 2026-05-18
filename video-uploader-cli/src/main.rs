@@ -283,6 +283,32 @@ fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
         });
     }
 
+    // Validate column presence
+    let header_names: Vec<&str> = headers.iter().collect();
+    let required = ["file", "title"];
+    let optional = ["description", "tags", "visibility", "workspace", "profile"];
+
+    for col in &required {
+        if !header_names.contains(col) {
+            return Err(anyhow::anyhow!(
+                "CSV manifest missing required column: '{col}'"
+            ));
+        }
+    }
+
+    let missing_optional: Vec<&str> = optional
+        .iter()
+        .filter(|col| !header_names.contains(col))
+        .copied()
+        .collect();
+    if !missing_optional.is_empty() {
+        eprintln!(
+            "  \u{{26A0}} Note: CSV manifest is missing optional columns: {}",
+            missing_optional.join(", ")
+        );
+        eprintln!("  Available: file, title, description, tags, visibility, workspace, profile");
+    }
+
     Ok(entries)
 }
 
