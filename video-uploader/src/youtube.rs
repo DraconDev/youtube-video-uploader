@@ -282,6 +282,55 @@ impl YouTubeUploader {
             .to_string()
     }
 
+    /// Fetch the authenticated user's YouTube channel info via `channels.list?mine=true`.
+    ///
+    /// Returns `(channel_id, channel_title)` if found.
+    /// Requires a valid access token (will refresh if needed).
+    pub async fn fetch_channel_info(&self) -> Result<(String, String), UploadError> {
+        let access_token = self.get_access_token().await?;
+
+        let url = format!(
+            "https://www.googleapis.com/youtube/v3/channels?mine=true&part=snippet"
+        );
+
+        let response = self.client
+            .get(&url)
+            .bearer_auth(&access_token)
+            .send()
+            .await
+            .map_err(|e| UploadError::Http(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(UploadError::Http(format!(
+                "channels.list failed ({}): {}",
+                status, body
+            )));
+        }
+
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| UploadError::Http(format!("channels.list parse error: {e}")))?;
+
+        let items = body["items"].as_array().ok_or_else(|| {
+            UploadError::Http("channels.list returned no items".to_string())
+        })?;
+
+        if items.is_empty() {
+            return Err(UploadError::Http(
+                "No YouTube channel found for this account".to_string(),
+            ));
+        }
+
+        let channel = &items[0];
+        let channel_id = channel["id"].as_str().unwrap_or("").to_string();
+        let channel_title = channel["snippet"]["title"].as_str().unwrap_or("(unknown)").to_string();
+
+        Ok((channel_id, channel_title))
+    }
+
     /// Initiate a resumable upload session using the default YouTube upload endpoint.
     pub async fn initiate_resumable(
         &self,

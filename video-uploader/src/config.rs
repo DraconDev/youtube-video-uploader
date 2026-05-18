@@ -46,6 +46,14 @@ pub struct PlatformCredentials {
     pub token_expires_at: Option<u64>,
     pub client_id: Option<Zeroizing<String>>,
     pub client_secret: Option<Zeroizing<String>>,
+    /// YouTube channel ID (fetched after auth via channels.list?mine=true).
+    #[zeroize(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel_id: Option<String>,
+    /// YouTube channel title (fetched after auth via channels.list?mine=true).
+    #[zeroize(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel_name: Option<String>,
 }
 
 impl PlatformCredentials {
@@ -87,6 +95,8 @@ impl std::fmt::Debug for PlatformCredentials {
                 "client_secret",
                 &self.client_secret.as_ref().map(|_| "[REDACTED]"),
             )
+            .field("channel_id", &self.channel_id)
+            .field("channel_name", &self.channel_name)
             .finish()
     }
 }
