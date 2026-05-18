@@ -103,6 +103,7 @@ pub struct VideoUpload {
     pub(crate) public_stats_viewable: Option<bool>,
     pub(crate) description_suffix: Option<String>,
     pub(crate) publish_at: Option<String>,
+    pub(crate) recording_date: Option<String>,
 }
 
 impl VideoUpload {
@@ -188,6 +189,12 @@ impl VideoUpload {
 
     pub fn with_publish_at(mut self, datetime: impl Into<String>) -> Self {
         self.publish_at = Some(datetime.into());
+        self
+    }
+
+    /// Set the recording date (ISO 8601, e.g. "2026-05-18").
+    pub fn with_recording_date(mut self, date: impl Into<String>) -> Self {
+        self.recording_date = Some(date.into());
         self
     }
 
