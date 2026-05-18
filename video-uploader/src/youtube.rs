@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 use tracing::instrument;
 use zeroize::Zeroizing;
 
-const YOUTUBE_API_PART: &str = "snippet,status";
+const YOUTUBE_API_PART: &str = "snippet,status,recordingDetails";
 const CHUNK_SIZE: usize = 8 * 1024 * 1024; // 8 MiB
 const MAX_RETRIES: u32 = 3;
 
@@ -376,10 +376,19 @@ impl YouTubeUploader {
             snippet["description"] = json!(format!("{desc}{suffix}"));
         }
 
-        let metadata = json!({
+        // Recording details (separate API object)
+        let mut recording_details = json!({});
+        if let Some(ref date) = video.recording_date {
+            recording_details["recordingDate"] = json!(date);
+        }
+
+        let mut metadata = json!({
             "snippet": snippet,
             "status": status
         });
+        if !recording_details.as_object().map_or(true, |o| o.is_empty()) {
+            metadata["recordingDetails"] = recording_details;
+        }
 
         let response = self
             .client
