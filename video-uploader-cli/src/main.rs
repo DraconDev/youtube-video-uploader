@@ -303,7 +303,7 @@ fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
         .collect();
     if !missing_optional.is_empty() {
         eprintln!(
-            "  \u{{26A0}} Note: CSV manifest is missing optional columns: {}",
+            "  \u{26A0} Note: CSV manifest is missing optional columns: {}",
             missing_optional.join(", ")
         );
         eprintln!("  Available: file, title, description, tags, visibility, workspace, profile");
