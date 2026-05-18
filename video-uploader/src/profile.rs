@@ -45,6 +45,9 @@ pub struct UploadProfile {
 
     /// Scheduled publish time (ISO 8601, e.g. "2026-05-20T09:00:00Z").
     pub publish_at: Option<String>,
+
+    /// Recording date (ISO 8601 date, e.g. "2026-05-18").
+    pub recording_date: Option<String>,
 }
 
 /// Per-video metadata loaded from a `.meta.toml` file.
@@ -106,6 +109,9 @@ pub struct VideoMeta {
 
     /// Scheduled publish time (ISO 8601).
     pub publish_at: Option<String>,
+
+    /// Recording date (ISO 8601 date, e.g. "2026-05-18").
+    pub recording_date: Option<String>,
 
     /// Profile name to use for this video.
     pub profile: Option<String>,
@@ -279,6 +285,9 @@ impl VideoMeta {
         }
         if let Some(ref dt) = self.publish_at {
             video = video.with_publish_at(dt);
+        }
+        if let Some(ref d) = self.recording_date {
+            video = video.with_recording_date(d);
         }
         video
     }

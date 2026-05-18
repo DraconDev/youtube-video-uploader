@@ -235,6 +235,9 @@ impl VideoUpload {
         if self.publish_at.is_none() && profile.publish_at.is_some() {
             self.publish_at = profile.publish_at.clone();
         }
+        if self.recording_date.is_none() && profile.recording_date.is_some() {
+            self.recording_date = profile.recording_date.clone();
+        }
         // Merge profile tags into video tags
         if let Some(ref profile_tags) = profile.tags {
             let mut merged = profile_tags.clone();
