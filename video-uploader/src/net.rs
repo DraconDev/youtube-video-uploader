@@ -25,6 +25,7 @@ pub fn build_http_client_with_timeout(secs: u64) -> reqwest::Client {
 /// Retry an async operation up to `max_retries` times with exponential backoff.
 ///
 /// Only retries on errors where `UploadError::is_retryable()` returns `true`.
+pub async fn retry<F, Fut, T>(operation: F, max_retries: u32) -> Result<T, UploadError>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<T, UploadError>>,

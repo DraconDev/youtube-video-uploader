@@ -61,7 +61,6 @@ impl ProgressListener for NoopProgressListener {
 /// Shows upload speed and ETA when progress is reported multiple times.
 pub struct StderrProgressListener {
     start: std::time::Instant,
-    last_uploaded: std::sync::atomic::AtomicU64,
 }
 
 impl Default for StderrProgressListener {
@@ -75,7 +74,6 @@ impl StderrProgressListener {
     pub fn new() -> Self {
         Self {
             start: std::time::Instant::now(),
-            last_uploaded: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }
@@ -115,7 +113,6 @@ impl ProgressListener for StderrProgressListener {
                 );
             }
 
-            self.last_uploaded.store(uploaded, std::sync::atomic::Ordering::Relaxed);
         }
     }
 
