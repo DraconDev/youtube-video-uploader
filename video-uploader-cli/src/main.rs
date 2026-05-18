@@ -1,4 +1,4 @@
-use anyhow::Result;
+mod output;
 use clap::{Parser, Subcommand};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -11,7 +11,7 @@ use video_uploader::{
 
 #[derive(Parser)]
 #[command(name = "video-uploader")]
-#[command(about = "Upload videos to YouTube")]
+#[command(about = "Upload videos to YouTube via the Data API v3")]
 struct Cli {
     #[arg(short, long)]
     passphrase: Option<String>,
@@ -29,12 +29,20 @@ struct Cli {
     )]
     workspace: Option<String>,
 
+    #[arg(
+        short = 'P',
+        long,
+        help = "Upload profile name (from ~/.config/video-uploader/profiles/<name>.toml)"
+    )]
+    profile: Option<String>,
+
     #[command(subcommand)]
     command: Commands,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Authenticate with YouTube (one-time per workspace)
     Auth {
         #[arg(long)]
         client_id: Option<String>,
@@ -42,6 +50,7 @@ enum Commands {
         #[arg(long)]
         client_secret: Option<String>,
     },
+    /// Upload a single video
     Upload {
         #[arg(long, help = "Path to video file")]
         file: String,
@@ -63,8 +72,31 @@ enum Commands {
 
         #[arg(long, help = "Mark as made for kids (required by YouTube)")]
         made_for_kids: Option<bool>,
+
+        #[arg(long, help = "License: youtube or creative-common")]
+        license: Option<String>,
+
+        #[arg(long, help = "BCP-47 language code (e.g. en, es, fr)")]
+        language: Option<String>,
+
+        #[arg(long, help = "Video contains AI/synthetic media")]
+        contains_synthetic_media: Option<bool>,
+
+        #[arg(long, help = "Allow embedding on other sites")]
+        embeddable: Option<bool>,
+
+        #[arg(long, help = "Show public view counts")]
+        public_stats_viewable: Option<bool>,
+
+        #[arg(long, help = "Scheduled publish time (ISO 8601, e.g. 2026-05-20T09:00:00Z)")]
+        publish_at: Option<String>,
+
+        #[arg(long, help = "Text to append to the description")]
+        description_suffix: Option<String>,
     },
+    /// List configured workspaces
     List,
+    /// Batch upload from a CSV manifest
     Batch {
         #[arg(
             long,
@@ -78,10 +110,14 @@ enum Commands {
         #[arg(long, default_value = "4", help = "Number of concurrent uploads")]
         concurrency: usize,
     },
+    /// Manage workspaces (set default, rename, remove)
     Workspace {
         #[command(subcommand)]
         action: WorkspaceAction,
     },
+
+    /// List available upload profiles
+    Profile,
 }
 
 #[derive(Subcommand)]
@@ -297,7 +333,7 @@ fn resolve_workspace(
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> anyhow::Result<()> {
     // Load .env from CWD or project root (silent no-op if missing)
     let _ = dotenvy::dotenv();
 
@@ -350,19 +386,7 @@ async fn main() -> Result<()> {
             // Try device code flow first (works with "TVs and Limited Input" client type),
             // fall back to authorization code flow (works with "Web" and "Installed" client types)
             let token = match device_code::run_device_code_flow(&client_id, &client_secret, |resp| {
-                println!();
-                println!("===========================================");
-                println!("  IMPORTANT: One-time YouTube authorization");
-                println!("===========================================");
-                println!();
-                println!("  1. Open this URL on any device:");
-                println!();
-                println!("     {}", resp.verification_url);
-                println!();
-                println!("  2. Enter this code: {}", resp.user_code);
-                println!();
-                println!("  Waiting for authorization... (Ctrl+C to cancel)");
-                println!();
+                output::auth_banner(&resp.user_code, &resp.verification_url);
             })
             .await
             {
@@ -392,7 +416,7 @@ async fn main() -> Result<()> {
                 store.set_default(&workspace);
             }
             store.save(&passphrase)?;
-            println!("\nCredentials saved successfully for workspace '{}'!", workspace);
+            output::auth_success(&workspace);
         }
 
         Commands::Upload {
@@ -403,11 +427,22 @@ async fn main() -> Result<()> {
             visibility,
             category,
             made_for_kids,
+            license,
+            language,
+            contains_synthetic_media,
+            embeddable,
+            public_stats_viewable,
+            publish_at,
+            description_suffix,
         } => {
             let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
             let workspace = resolve_workspace(&*store.lock().await, cli.workspace.as_deref())?;
             let youtube = YouTubeUploader::new(store, &passphrase, &workspace);
             let file = expand_tilde(&file);
+
+            // Load profile (explicit > default.toml > built-in defaults)
+            let profile = video_uploader::UploadProfile::resolve(cli.profile.as_deref())?;
+
             let mut video = VideoUpload::new(&file, &title)
                 .with_description(description.unwrap_or_default())
                 .with_tags(
@@ -422,12 +457,43 @@ async fn main() -> Result<()> {
             if let Some(kids) = made_for_kids {
                 video = video.with_made_for_kids(kids);
             }
+            if let Some(ref lic) = license
+                && let Ok(l) = lic.parse()
+            {
+                video = video.with_license(l);
+            }
+            if let Some(ref lang) = language {
+                video = video.with_language(lang);
+            }
+            if let Some(flag) = contains_synthetic_media {
+                video = video.with_contains_synthetic_media(flag);
+            }
+            if let Some(flag) = embeddable {
+                video = video.with_embeddable(flag);
+            }
+            if let Some(flag) = public_stats_viewable {
+                video = video.with_public_stats_viewable(flag);
+            }
+            if let Some(ref dt) = publish_at {
+                video = video.with_publish_at(dt);
+            }
+            if let Some(ref suffix) = description_suffix {
+                video = video.with_description_suffix(suffix);
+            }
+
+            // Apply profile defaults for any unset fields
+            video = video.apply_profile(&profile);
 
             let progress = Arc::new(StderrProgressListener);
             match youtube.upload(&video, Some(progress.clone())).await {
                 Ok(r) => {
-                    println!("\n--- Result ---");
-                    println!("  YouTube: {} ({})", r.url, r.video_id);
+                    output::upload_result(
+                        &r.workspace,
+                        &r.video_id,
+                        &r.url,
+                        &r.title,
+                        &video.visibility().to_string(),
+                    );
                 }
                 Err(e) => {
                     return Err(anyhow::anyhow!("Upload failed: {e}"));
@@ -444,11 +510,11 @@ async fn main() -> Result<()> {
             println!("Batch manifest loaded: {} video(s)", entries.len());
 
             if dry_run {
-                println!("\n--- Dry run ---");
-                for (i, entry) in entries.iter().enumerate() {
-                    let ws = entry.workspace.as_deref().unwrap_or("(default)");
-                    println!("  {}. [{}] {} → {}", i + 1, ws, entry.file, entry.title,);
-                }
+                let preview: Vec<(String, String, Option<String>)> = entries
+                    .iter()
+                    .map(|e| (e.file.clone(), e.title.clone(), e.workspace.clone()))
+                    .collect();
+                output::dry_run(&preview);
                 return Ok(());
             }
 
@@ -486,13 +552,13 @@ async fn main() -> Result<()> {
                 handles.push(tokio::spawn(async move {
                     let _permit = semaphore.acquire().await.unwrap();
                     let ws_display = entry.workspace.as_deref().unwrap_or("default");
-                    println!("\n[{} / {}] [{}] Uploading: {}", i + 1, total, ws_display, entry.title);
+                    output::batch_progress(i + 1, total, ws_display, &entry.title);
 
                     let store_guard = store.lock().await;
                     let ws = match resolve_workspace(&store_guard, entry.workspace.as_deref()) {
                         Ok(w) => w,
                         Err(e) => {
-                            eprintln!("  Workspace error: {e}");
+                            output::print_error(&format!("Workspace error: {e}"));
                             return 1u32;
                         }
                     };
@@ -506,11 +572,11 @@ async fn main() -> Result<()> {
                     let youtube = YouTubeUploader::new(store, &passphrase, &ws);
                     match youtube.upload(&video, Some(progress.clone())).await {
                         Ok(r) => {
-                            println!("  YouTube: {} ({})", r.url, r.video_id);
+                            output::batch_item_result(&r.url, &r.video_id);
                             0u32
                         }
                         Err(e) => {
-                            eprintln!("  YouTube failed: {e}");
+                            output::batch_item_error(&e.to_string());
                             1u32
                         }
                     }
@@ -531,22 +597,18 @@ async fn main() -> Result<()> {
                     entries.len()
                 ));
             }
-            println!("\nBatch complete. {} video(s) processed.", entries.len());
+            let succeeded = total - validation_errors.len();
+            output::batch_summary(total, succeeded, validation_errors.len());
         }
 
         Commands::List => {
             let store = CredentialStore::load(&passphrase)?;
-            let workspaces: Vec<_> = store.workspaces().collect();
-            if workspaces.is_empty() {
-                println!("No workspaces configured. Run: video-uploader auth");
-            } else {
-                println!("Workspaces:");
-                let default = store.default_workspace();
-                for w in workspaces {
-                    let marker = if default == Some(w) { " (default)" } else { "" };
-                    println!("  - {}{}", w, marker);
-                }
-            }
+            let default = store.default_workspace();
+            let workspaces: Vec<_> = store
+                .workspaces()
+                .map(|w| (w.as_str(), default == Some(w)))
+                .collect();
+            output::workspace_list(&workspaces);
         }
 
         Commands::Workspace { action } => {
@@ -561,7 +623,7 @@ async fn main() -> Result<()> {
                     }
                     store.set_default(&name);
                     store.save(&passphrase)?;
-                    println!("Default workspace set to '{}'", name);
+                    output::workspace_default_set(&name);
                 }
                 WorkspaceAction::Rename { old, new } => {
                     if store.get(&old).is_none() {
@@ -576,7 +638,7 @@ async fn main() -> Result<()> {
                         store.set_default(&new);
                     }
                     store.save(&passphrase)?;
-                    println!("Workspace '{}' renamed to '{}'", old, new);
+                    output::workspace_renamed(&old, &new);
                 }
                 WorkspaceAction::Remove { name } => {
                     if store.get(&name).is_none() {
@@ -590,9 +652,14 @@ async fn main() -> Result<()> {
                         store.clear_default();
                     }
                     store.save(&passphrase)?;
-                    println!("Workspace '{}' removed", name);
+                    output::workspace_removed(&name);
                 }
             }
+        }
+        Commands::Profile => {
+            let profiles_map = video_uploader::UploadProfile::list()?;
+            let profiles: Vec<_> = profiles_map.into_iter().collect();
+            output::profile_list(&profiles);
         }
     }
 

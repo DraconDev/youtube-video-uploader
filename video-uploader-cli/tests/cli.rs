@@ -124,11 +124,11 @@ fn cli_list_no_credentials() {
     cmd.args(["list"]);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
     assert!(
-        stdout.contains("No workspaces configured"),
+        combined.contains("No workspaces configured"),
         "expected not configured message, got: {}",
-        stdout
+        combined
     );
 }
 
@@ -141,11 +141,11 @@ fn cli_list_with_passphrase_file() {
     cmd.args(["--passphrase-file", pass.to_str().unwrap(), "list"]);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
     assert!(
-        stdout.contains("No workspaces configured"),
+        combined.contains("No workspaces configured"),
         "expected not configured message, got: {}",
-        stdout
+        combined
     );
 }
 
@@ -221,16 +221,16 @@ fn cli_batch_dry_run_valid_manifest() {
         "dry run should succeed, stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
     assert!(
-        stdout.contains("Batch manifest loaded"),
+        combined.contains("Batch manifest loaded"),
         "expected manifest loaded, got: {}",
-        stdout
+        combined
     );
     assert!(
-        stdout.contains("Dry run") || stdout.contains("1 video(s)"),
+        combined.contains("Dry Run") || combined.contains("1 video(s)"),
         "expected dry run confirmation, got: {}",
-        stdout
+        combined
     );
 }
 
@@ -397,26 +397,26 @@ fn cli_batch_dry_run_multi_row_with_workspaces() {
         "multi-row dry run should succeed, stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
     assert!(
-        stdout.contains("3 video(s)"),
+        combined.contains("3 video(s)"),
         "expected 3 videos, got: {}",
-        stdout
+        combined
     );
     assert!(
-        stdout.contains("[gaming]"),
+        combined.contains("[gaming]"),
         "expected gaming workspace marker, got: {}",
-        stdout
+        combined
     );
     assert!(
-        stdout.contains("[cooking]"),
+        combined.contains("[cooking]"),
         "expected cooking workspace marker, got: {}",
-        stdout
+        combined
     );
     assert!(
-        stdout.contains("(default)"),
+        combined.contains("(default)"),
         "expected default workspace marker, got: {}",
-        stdout
+        combined
     );
 }
 

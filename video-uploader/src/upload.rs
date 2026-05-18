@@ -33,6 +33,48 @@ impl fmt::Display for Visibility {
     }
 }
 
+impl std::str::FromStr for Visibility {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "private" => Ok(Visibility::Private),
+            "unlisted" => Ok(Visibility::Unlisted),
+            "public" => Ok(Visibility::Public),
+            _ => Err(format!("Unknown visibility: {s}")),
+        }
+    }
+}
+
+/// Video license type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum License {
+    #[default]
+    Youtube,
+    CreativeCommon,
+}
+
+impl fmt::Display for License {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            License::Youtube => write!(f, "youtube"),
+            License::CreativeCommon => write!(f, "creativeCommon"),
+        }
+    }
+}
+
+impl std::str::FromStr for License {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "youtube" | "standard" => Ok(License::Youtube),
+            "creative-common" | "creativecommon" | "cc" => Ok(License::CreativeCommon),
+            _ => Err(format!("Unknown license: {s}")),
+        }
+    }
+}
+
 /// Metadata and file path for a video upload.
 ///
 /// Use the builder pattern to construct:
@@ -54,6 +96,13 @@ pub struct VideoUpload {
     pub(crate) visibility: Visibility,
     pub(crate) category_id: Option<String>,
     pub(crate) made_for_kids: Option<bool>,
+    pub(crate) license: Option<License>,
+    pub(crate) language: Option<String>,
+    pub(crate) contains_synthetic_media: Option<bool>,
+    pub(crate) embeddable: Option<bool>,
+    pub(crate) public_stats_viewable: Option<bool>,
+    pub(crate) description_suffix: Option<String>,
+    pub(crate) publish_at: Option<String>,
 }
 
 impl VideoUpload {
@@ -66,6 +115,13 @@ impl VideoUpload {
             visibility: Visibility::default(),
             category_id: None,
             made_for_kids: None,
+            license: None,
+            language: None,
+            contains_synthetic_media: None,
+            embeddable: None,
+            public_stats_viewable: None,
+            description_suffix: None,
+            publish_at: None,
         }
     }
 
@@ -91,6 +147,88 @@ impl VideoUpload {
 
     pub fn with_made_for_kids(mut self, flag: bool) -> Self {
         self.made_for_kids = Some(flag);
+        self
+    }
+
+    pub fn with_license(mut self, license: License) -> Self {
+        self.license = Some(license);
+        self
+    }
+
+    pub fn with_language(mut self, lang: impl Into<String>) -> Self {
+        self.language = Some(lang.into());
+        self
+    }
+
+    pub fn with_contains_synthetic_media(mut self, flag: bool) -> Self {
+        self.contains_synthetic_media = Some(flag);
+        self
+    }
+
+    pub fn with_embeddable(mut self, flag: bool) -> Self {
+        self.embeddable = Some(flag);
+        self
+    }
+
+    pub fn with_public_stats_viewable(mut self, flag: bool) -> Self {
+        self.public_stats_viewable = Some(flag);
+        self
+    }
+
+    pub fn with_description_suffix(mut self, suffix: impl Into<String>) -> Self {
+        self.description_suffix = Some(suffix.into());
+        self
+    }
+
+    pub fn with_publish_at(mut self, datetime: impl Into<String>) -> Self {
+        self.publish_at = Some(datetime.into());
+        self
+    }
+
+    /// Apply profile defaults to any unset fields.
+    /// Does not overwrite fields that are already set (CLI flags take precedence).
+    pub fn apply_profile(mut self, profile: &crate::UploadProfile) -> Self {
+        if self.visibility == Visibility::default()
+            && let Some(ref vis) = profile.visibility
+            && let Ok(v) = vis.parse()
+        {
+            self.visibility = v;
+        }
+        if self.category_id.is_none() && profile.category.is_some() {
+            self.category_id = profile.category.clone();
+        }
+        if self.made_for_kids.is_none() && profile.made_for_kids.is_some() {
+            self.made_for_kids = profile.made_for_kids;
+        }
+        if self.license.is_none() && profile.license.is_some() {
+            self.license = profile.license.as_ref().and_then(|l| l.parse().ok());
+        }
+        if self.language.is_none() && profile.language.is_some() {
+            self.language = profile.language.clone();
+        }
+        if self.contains_synthetic_media.is_none() && profile.contains_synthetic_media.is_some() {
+            self.contains_synthetic_media = profile.contains_synthetic_media;
+        }
+        if self.embeddable.is_none() && profile.embeddable.is_some() {
+            self.embeddable = profile.embeddable;
+        }
+        if self.public_stats_viewable.is_none() && profile.public_stats_viewable.is_some() {
+            self.public_stats_viewable = profile.public_stats_viewable;
+        }
+        if self.description_suffix.is_none() && profile.description_suffix.is_some() {
+            self.description_suffix = profile.description_suffix.clone();
+        }
+        if self.publish_at.is_none() && profile.publish_at.is_some() {
+            self.publish_at = profile.publish_at.clone();
+        }
+        // Merge profile tags into video tags
+        if let Some(ref profile_tags) = profile.tags {
+            let mut merged = profile_tags.clone();
+            merged.append(&mut self.tags);
+            merged.sort();
+            merged.dedup();
+            self.tags = merged;
+        }
         self
     }
 

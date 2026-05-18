@@ -342,16 +342,42 @@ impl YouTubeUploader {
 
         let mut status = json!({ "privacyStatus": video.visibility.to_string() });
         if let Some(kids) = video.made_for_kids {
-            status["madeForKids"] = json!(kids);
+            status["selfDeclaredMadeForKids"] = json!(kids);
+        }
+        if let Some(license) = &video.license {
+            status["license"] = json!(license.to_string());
+        }
+        if let Some(embeddable) = video.embeddable {
+            status["embeddable"] = json!(embeddable);
+        }
+        if let Some(pub_stats) = video.public_stats_viewable {
+            status["publicStatsViewable"] = json!(pub_stats);
+        }
+        if let Some(synthetic) = video.contains_synthetic_media {
+            status["containsSyntheticMedia"] = json!(synthetic);
+        }
+        if let Some(ref publish_at) = video.publish_at {
+            status["publishAt"] = json!(publish_at);
+        }
+
+        let mut snippet = json!({
+            "title": video.title,
+            "description": video.description.as_deref().unwrap_or(""),
+            "tags": video.tags,
+            "categoryId": category_id,
+        });
+        if let Some(ref lang) = video.language {
+            snippet["defaultLanguage"] = json!(lang);
+        }
+
+        // Append description suffix if set
+        if let Some(ref suffix) = video.description_suffix {
+            let desc = snippet["description"].as_str().unwrap_or("");
+            snippet["description"] = json!(format!("{desc}{suffix}"));
         }
 
         let metadata = json!({
-            "snippet": {
-                "title": video.title,
-                "description": video.description.as_deref().unwrap_or(""),
-                "tags": video.tags,
-                "categoryId": category_id,
-            },
+            "snippet": snippet,
             "status": status
         });
 
