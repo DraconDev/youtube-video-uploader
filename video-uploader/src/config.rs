@@ -726,6 +726,8 @@ mod tests {
                 token_expires_at: None,
                 client_id: None,
                 client_secret: None,
+                channel_id: None,
+                channel_name: None,
             },
         );
 
