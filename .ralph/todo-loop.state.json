@@ -1,7 +1,7 @@
 {
   "name": "todo-loop",
   "taskFile": ".ralph/todo-loop.md",
-  "iteration": 2,
+  "iteration": 3,
   "maxIterations": 200,
   "itemsPerIteration": 2,
   "reflectEvery": 3,
