@@ -272,3 +272,11 @@ pub fn channel_info(workspace: &str, channel_name: &str, channel_id: &str) {
     kv("Channel ID", channel_id);
     eprintln!();
 }
+
+/// Print the upload result as JSON (for automation/CI).
+pub fn upload_result_json(result: &video_uploader::UploadResult) {
+    match serde_json::to_string_pretty(result) {
+        Ok(json) => println!("{json}"),
+        Err(e) => eprintln!("Error serializing result: {e}"),
+    }
+}

@@ -107,6 +107,11 @@ enum Commands {
     },
     /// List configured workspaces
     List,
+    /// Show YouTube channel info for a workspace
+    Channel {
+        /// Workspace to query (defaults to the default workspace)
+        workspace: Option<String>,
+    },
     /// Batch upload from a CSV manifest
     Batch {
         #[arg(
@@ -794,6 +799,35 @@ async fn main() -> anyhow::Result<()> {
                 })
                 .collect();
             output::workspace_list(&workspaces);
+        }
+
+        Commands::Channel { workspace } => {
+            let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
+            let ws = {
+                let guard = store.lock().await;
+                resolve_workspace(&guard, workspace.as_deref())?
+            };
+            let youtube = YouTubeUploader::new(
+                Arc::clone(&store),
+                &passphrase,
+                &ws,
+            );
+            match youtube.fetch_channel_info().await {
+                Ok((channel_id, channel_title)) => {
+                    // Update stored channel info
+                    let mut guard = store.lock().await;
+                    if let Some(creds) = guard.get_mut(&ws) {
+                        creds.channel_id = Some(channel_id.clone());
+                        creds.channel_name = Some(channel_title.clone());
+                    }
+                    guard.save(&passphrase)?;
+                    drop(guard);
+                    output::channel_info(&ws, &channel_title, &channel_id);
+                }
+                Err(e) => {
+                    return Err(anyhow::anyhow!("Failed to fetch channel info: {e}"));
+                }
+            }
         }
 
         Commands::Workspace { action } => {
