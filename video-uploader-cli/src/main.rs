@@ -49,17 +49,20 @@ enum Commands {
         #[arg(long)]
         title: String,
 
-        #[arg(long)]
+        #[arg(long, short)]
         description: Option<String>,
 
-        #[arg(long)]
+        #[arg(long, help = "Comma-separated tags")]
         tags: Option<String>,
 
-        #[arg(long, default_value = "public")]
+        #[arg(long, short, default_value = "private", help = "Visibility: public, unlisted, private")]
         visibility: VisibilityArg,
 
-        #[arg(long)]
+        #[arg(long, help = "YouTube category ID (default: 22 People & Blogs)")]
         category: Option<String>,
+
+        #[arg(long, help = "Mark as made for kids (required by YouTube)")]
+        made_for_kids: Option<bool>,
     },
     List,
     Batch {
@@ -98,9 +101,9 @@ enum WorkspaceAction {
 #[derive(clap::ValueEnum, Clone, Default, Debug)]
 enum VisibilityArg {
     #[default]
-    Public,
-    Unlisted,
     Private,
+    Unlisted,
+    Public,
 }
 
 impl From<VisibilityArg> for video_uploader::Visibility {
@@ -399,6 +402,7 @@ async fn main() -> Result<()> {
             tags,
             visibility,
             category,
+            made_for_kids,
         } => {
             let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
             let workspace = resolve_workspace(&*store.lock().await, cli.workspace.as_deref())?;
@@ -414,6 +418,9 @@ async fn main() -> Result<()> {
 
             if let Some(cat) = category {
                 video = video.with_category(&cat);
+            }
+            if let Some(kids) = made_for_kids {
+                video = video.with_made_for_kids(kids);
             }
 
             let progress = Arc::new(StderrProgressListener);

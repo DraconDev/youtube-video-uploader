@@ -2,24 +2,8 @@ use crate::UploadError;
 use crate::auth::TokenResponse;
 use crate::auth::urls::{google_device_code_url, google_token_url, youtube_upload_scope};
 use crate::net::build_http_client;
-use rand::Rng;
 use serde::Deserialize;
 use std::time::{Duration, Instant};
-
-const PKCE_CODE_VERIFIER_LEN: usize = 64;
-
-pub fn generate_pkce_pair() -> (String, String) {
-    let mut verifier_bytes = [0u8; PKCE_CODE_VERIFIER_LEN];
-    rand::rng().fill(&mut verifier_bytes);
-    let verifier = base64::Engine::encode(
-        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-        verifier_bytes,
-    );
-    use sha2::{Digest, Sha256};
-    let hash = Sha256::digest(verifier.as_bytes());
-    let challenge = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash);
-    (verifier, challenge)
-}
 
 #[derive(Debug, Deserialize)]
 pub struct DeviceCodeResponse {
@@ -46,14 +30,11 @@ struct TokenErrorResponse {
 async fn start_device_code_with_url(
     device_code_url: &str,
     client_id: &str,
-    code_challenge: &str,
 ) -> Result<DeviceCodeResponse, UploadError> {
     let client = build_http_client();
     let params = [
         ("client_id", client_id),
         ("scope", &youtube_upload_scope()),
-        ("code_challenge", code_challenge),
-        ("code_challenge_method", "S256"),
     ];
 
     let response = client.post(device_code_url).form(&params).send().await?;
@@ -71,18 +52,16 @@ async fn start_device_code_with_url(
 
 pub async fn start_device_code(
     client_id: &str,
-    code_challenge: &str,
 ) -> Result<DeviceCodeResponse, UploadError> {
-    start_device_code_with_url(google_device_code_url().as_str(), client_id, code_challenge).await
+    start_device_code_with_url(google_device_code_url().as_str(), client_id).await
 }
 
 #[cfg(feature = "test-utils")]
 pub async fn start_device_code_url(
     device_code_url: &str,
     client_id: &str,
-    code_challenge: &str,
 ) -> Result<DeviceCodeResponse, UploadError> {
-    start_device_code_with_url(device_code_url, client_id, code_challenge).await
+    start_device_code_with_url(device_code_url, client_id).await
 }
 
 #[cfg(feature = "test-utils")]
@@ -91,7 +70,6 @@ pub async fn poll_for_token_url(
     device_code: &str,
     client_id: &str,
     client_secret: &str,
-    code_verifier: &str,
     expires_in_secs: u64,
     poll_interval_secs: u64,
 ) -> Result<TokenResponse, UploadError> {
@@ -100,7 +78,6 @@ pub async fn poll_for_token_url(
         device_code,
         client_id,
         client_secret,
-        code_verifier,
         expires_in_secs,
         poll_interval_secs,
     )
@@ -111,7 +88,6 @@ pub async fn poll_for_token(
     device_code: &str,
     client_id: &str,
     client_secret: &str,
-    code_verifier: &str,
     expires_in_secs: u64,
     poll_interval_secs: u64,
 ) -> Result<TokenResponse, UploadError> {
@@ -120,7 +96,6 @@ pub async fn poll_for_token(
         device_code,
         client_id,
         client_secret,
-        code_verifier,
         expires_in_secs,
         poll_interval_secs,
     )
@@ -132,7 +107,6 @@ pub async fn poll_for_token_with_url(
     device_code: &str,
     client_id: &str,
     client_secret: &str,
-    code_verifier: &str,
     expires_in_secs: u64,
     poll_interval_secs: u64,
 ) -> Result<TokenResponse, UploadError> {
@@ -155,13 +129,14 @@ pub async fn poll_for_token_with_url(
             ("client_secret", client_secret),
             ("device_code", device_code),
             ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-            ("code_verifier", code_verifier),
         ];
 
         let response = client.post(token_url).form(&params).send().await?;
 
         let status = response.status();
         let body = response.text().await?;
+
+        tracing::debug!("Token poll response: status={}, body={}", status, &body[..body.len().min(200)]);
 
         if status.is_success() {
             let token: TokenResponse = serde_json::from_str(&body)
@@ -183,6 +158,12 @@ pub async fn poll_for_token_with_url(
             "expired_token" => {
                 return Err(UploadError::Auth("Device code expired".into()));
             }
+            // Google sometimes returns transient errors; retry a few times
+            "internal_failure" | "server_error" => {
+                tracing::warn!("Transient token error: {} - {}, retrying...", err.error, err.error_description);
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                continue;
+            }
             _ => {
                 return Err(UploadError::Auth(format!(
                     "Token polling failed: {} - {}",
@@ -198,8 +179,7 @@ pub async fn run_device_code_flow(
     client_secret: &str,
     print_instructions: impl Fn(&DeviceCodeResponse),
 ) -> Result<TokenResponse, UploadError> {
-    let (code_verifier, code_challenge) = generate_pkce_pair();
-    let device = start_device_code(client_id, &code_challenge).await?;
+    let device = start_device_code(client_id).await?;
     print_instructions(&device);
     let expires_in = if device.expires_in > 0 {
         device.expires_in
@@ -215,7 +195,6 @@ pub async fn run_device_code_flow(
         &device.device_code,
         client_id,
         client_secret,
-        &code_verifier,
         expires_in,
         poll_interval,
     )

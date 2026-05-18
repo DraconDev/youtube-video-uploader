@@ -340,6 +340,11 @@ impl YouTubeUploader {
             "22".to_string()
         });
 
+        let mut status = json!({ "privacyStatus": video.visibility.to_string() });
+        if let Some(kids) = video.made_for_kids {
+            status["madeForKids"] = json!(kids);
+        }
+
         let metadata = json!({
             "snippet": {
                 "title": video.title,
@@ -347,7 +352,7 @@ impl YouTubeUploader {
                 "tags": video.tags,
                 "categoryId": category_id,
             },
-            "status": { "privacyStatus": video.visibility.to_string() }
+            "status": status
         });
 
         let response = self

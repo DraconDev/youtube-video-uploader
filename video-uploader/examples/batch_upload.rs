@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
             let uploader = YouTubeUploader::new(store, &passphrase, &workspace);
-            let video = VideoUpload::new(&file, &title).with_visibility(Visibility::Public);
+            let video = VideoUpload::new(&file, &title).with_visibility(Visibility::Private);
             uploader.upload(&video, Some(progress)).await
         });
         handles.push(handle);

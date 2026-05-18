@@ -336,76 +336,14 @@ async fn test_validate_upload_url_rejects_non_google_storage_urls() {
     let result_evil = YouTubeUploader::validate_upload_url_for_testing("https://evil.com/upload");
     assert!(result_evil.is_err(), "should reject non-google URLs");
 }
-// These tests verify that the PKCE code_verifier generated during the device code
-// flow is actually sent to the token endpoint during poll_for_token. We can't easily
-// mock poll_for_token itself because it POSTs to a hardcoded Google URL, so we
-// test the wiremock infrastructure directly by sending real HTTP requests and
-// asserting on the captured body content.
+// These tests verify the device code flow token polling without PKCE.
+// Google's device code flow for TV/Limited Input clients does not accept
+// code_verifier in the token exchange request.
 
-fn pkce_body_contains(substring: &str) -> impl wiremock::Match {
-    body_string_contains(substring)
-}
+// PKCE code_verifier test removed: device code flow does not use PKCE.
+// Google's device code flow rejects code_verifier in the token exchange.
 
-#[tokio::test]
-async fn test_pkce_code_verifier_is_sent_to_token_endpoint() {
-    let mock_server = MockServer::start().await;
-
-    let token_url = format!("{}/token", mock_server.uri());
-
-    Mock::given(method("POST"))
-        .and(path("/token"))
-        .and(pkce_body_contains("code_verifier=verifier_from_test"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "access_token": "ya29.mock_token",
-            "refresh_token": "1//mock_refresh",
-            "expires_in": 3600,
-            "token_type": "Bearer"
-        })))
-        .expect(1)
-        .mount(&mock_server)
-        .await;
-
-    // Directly POST to the mock token URL using the same form encoding as poll_for_token
-    let client = reqwest::Client::new();
-    let _resp = client
-        .post(&token_url)
-        .form(&[
-            ("client_id", "test_client"),
-            ("client_secret", "test_secret"),
-            ("device_code", "device_abc"),
-            ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-            ("code_verifier", "verifier_from_test"),
-        ])
-        .send()
-        .await
-        .unwrap();
-
-    // The .expect(1) above verified the mock server received exactly one request
-    // with "code_verifier=verifier_from_test" in the body. If wiremock didn't match,
-    // the expect would fail before we reach here.
-}
-
-// Integration test: device_code flow generates matching verifier/challenge pair
-#[test]
-fn test_generate_pkce_pair_produces_valid_pair() {
-    let (verifier, challenge) = video_uploader::auth::device_code::generate_pkce_pair();
-
-    // Verifier should be base64url-encoded 64 bytes (no padding)
-    let decoded =
-        base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &verifier)
-            .unwrap();
-    assert_eq!(decoded.len(), 64, "PKCE verifier must be 64 bytes");
-
-    // Challenge should be base64url(SHA256(verifier))
-    use sha2::Digest;
-    let hash = sha2::Sha256::digest(verifier.as_bytes());
-    let expected_challenge =
-        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash);
-    assert_eq!(
-        challenge, expected_challenge,
-        "code_challenge must be base64url(SHA256(verifier))"
-    );
-}
+// PKCE pair generation test removed: device code flow does not use PKCE.
 
 // ---------------------------------------------------------------------------
 // refresh_access_token wiremock tests
@@ -502,7 +440,6 @@ async fn test_poll_for_token_expired_token() {
         "device_abc",
         "test_client",
         "test_secret",
-        "verifier",
         1,
         1,
     )
@@ -536,7 +473,6 @@ async fn test_poll_for_token_expired_token_error_path() {
         "device_abc",
         "test_client",
         "test_secret",
-        "verifier",
         1,
         1,
     )
@@ -581,7 +517,6 @@ async fn test_poll_for_token_slow_down_increases_interval() {
         "device_abc",
         "test_client",
         "test_secret",
-        "verifier",
         1800,
         5,
     )
@@ -626,7 +561,6 @@ async fn test_poll_for_token_authorization_pending_retries() {
         "device_abc",
         "test_client",
         "test_secret",
-        "verifier",
         1800,
         1,
     )
@@ -657,7 +591,6 @@ async fn test_poll_for_token_unknown_error_fails() {
         "device_abc",
         "test_client",
         "test_secret",
-        "verifier",
         1800,
         5,
     )
@@ -784,7 +717,6 @@ async fn test_poll_for_token_timeout_is_cooperative() {
             "device_abc",
             "test_client",
             "test_secret",
-            "verifier",
             300,
             1,
         ),
@@ -861,7 +793,6 @@ async fn test_start_device_code_success() {
     Mock::given(method("POST"))
         .and(path("/device/code"))
         .and(body_string_contains("client_id=test_client_id"))
-        .and(body_string_contains("code_challenge_method=S256"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "device_code": "device_abc123",
             "user_code": "ABCD-EFGH",
@@ -876,7 +807,6 @@ async fn test_start_device_code_success() {
     let result = video_uploader::auth::device_code::start_device_code_url(
         &format!("{}/device/code", mock_server.uri()),
         "test_client_id",
-        "test_code_challenge",
     )
     .await
     .expect("start_device_code should succeed");
@@ -887,36 +817,8 @@ async fn test_start_device_code_success() {
     assert_eq!(result.interval, 5);
 }
 
-#[tokio::test]
-async fn test_start_device_code_includes_pkce_params() {
-    let mock_server = MockServer::start().await;
-
-    Mock::given(method("POST"))
-        .and(path("/device/code"))
-        .and(body_string_contains("code_challenge="))
-        .and(body_string_contains("code_challenge_method=S256"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "device_code": "device_xyz",
-            "user_code": "WXYZ-1234",
-            "verification_url": "https://www.google.com/device",
-            "expires_in": 600,
-            "interval": 5
-        })))
-        .expect(1)
-        .mount(&mock_server)
-        .await;
-
-    let result = video_uploader::auth::device_code::start_device_code_url(
-        &format!("{}/device/code", mock_server.uri()),
-        "client_with_pkce",
-        "EAAAAGIhpcjA6L6Nk1q-A7vI4gQj0CRh7bNQc6B8LNLjKmV8F0p1g",
-    )
-    .await
-    .expect("start_device_code with PKCE should succeed");
-
-    assert_eq!(result.device_code, "device_xyz");
-    assert_eq!(result.user_code, "WXYZ-1234");
-}
+// PKCE-specific start_device_code test removed: device code flow does not use PKCE.
+// Google's device code flow rejects code_challenge/code_challenge_method params.
 
 // ---------------------------------------------------------------------------
 // End-to-end upload flow (token refresh → initiate → chunks → result)

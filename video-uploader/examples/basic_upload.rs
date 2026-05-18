@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let video = VideoUpload::new("./my_video.mp4", "My Awesome Video")
         .with_description("Uploaded with video-uploader")
         .with_tags(vec!["rust".into(), "programming".into()])
-        .with_visibility(Visibility::Public);
+        .with_visibility(Visibility::Private);
 
     let progress = Arc::new(StderrProgressListener);
     let result = uploader.upload(&video, Some(progress)).await?;

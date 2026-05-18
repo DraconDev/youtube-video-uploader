@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 /// ```
 /// use video_uploader::Visibility;
 ///
-/// assert_eq!(Visibility::default(), Visibility::Public);
+/// assert_eq!(Visibility::default(), Visibility::Private);
 /// assert_eq!(Visibility::Unlisted.to_string(), "unlisted");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -18,17 +18,17 @@ use std::path::{Path, PathBuf};
 #[non_exhaustive]
 pub enum Visibility {
     #[default]
-    Public,
-    Unlisted,
     Private,
+    Unlisted,
+    Public,
 }
 
 impl fmt::Display for Visibility {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Visibility::Public => write!(f, "public"),
-            Visibility::Unlisted => write!(f, "unlisted"),
             Visibility::Private => write!(f, "private"),
+            Visibility::Unlisted => write!(f, "unlisted"),
+            Visibility::Public => write!(f, "public"),
         }
     }
 }
@@ -53,6 +53,7 @@ pub struct VideoUpload {
     pub(crate) tags: Vec<String>,
     pub(crate) visibility: Visibility,
     pub(crate) category_id: Option<String>,
+    pub(crate) made_for_kids: Option<bool>,
 }
 
 impl VideoUpload {
@@ -64,6 +65,7 @@ impl VideoUpload {
             tags: Vec::new(),
             visibility: Visibility::default(),
             category_id: None,
+            made_for_kids: None,
         }
     }
 
@@ -84,6 +86,11 @@ impl VideoUpload {
 
     pub fn with_category(mut self, id: impl Into<String>) -> Self {
         self.category_id = Some(id.into());
+        self
+    }
+
+    pub fn with_made_for_kids(mut self, flag: bool) -> Self {
+        self.made_for_kids = Some(flag);
         self
     }
 
@@ -122,6 +129,11 @@ impl VideoUpload {
     /// Returns the YouTube category ID, if set.
     pub fn category_id(&self) -> Option<&str> {
         self.category_id.as_deref()
+    }
+
+    /// Returns whether the video is made for kids.
+    pub fn made_for_kids(&self) -> Option<bool> {
+        self.made_for_kids
     }
 }
 
@@ -176,8 +188,8 @@ mod tests {
     }
 
     #[test]
-    fn test_visibility_default_is_public() {
-        assert_eq!(Visibility::default(), Visibility::Public);
+    fn test_visibility_default_is_private() {
+        assert_eq!(Visibility::default(), Visibility::Private);
     }
 
     #[test]
@@ -209,30 +221,30 @@ mod tests {
             .with_visibility(Visibility::Private)
             .with_category("22");
 
-        assert_eq!(upload.file_path, PathBuf::from("/tmp/video.mp4"));
-        assert_eq!(upload.title, "Test Title");
-        assert_eq!(upload.description, Some("A test description".to_string()));
-        assert_eq!(upload.tags, vec!["rust", "test"]);
-        assert_eq!(upload.visibility, Visibility::Private);
-        assert_eq!(upload.category_id, Some("22".to_string()));
+        assert_eq!(upload.file_path(), Path::new("/tmp/video.mp4"));
+        assert_eq!(upload.title(), "Test Title");
+        assert_eq!(upload.description(), Some("A test description"));
+        assert_eq!(upload.tags(), &["rust".to_string(), "test".to_string()]);
+        assert_eq!(upload.visibility(), Visibility::Private);
+        assert_eq!(upload.category_id(), Some("22"));
     }
 
     #[test]
     fn test_video_upload_minimal() {
         let upload = VideoUpload::new("/tmp/video.mp4", "Title Only");
-        assert_eq!(upload.title, "Title Only");
-        assert!(upload.description.is_none());
-        assert!(upload.tags.is_empty());
-        assert_eq!(upload.visibility, Visibility::Public);
-        assert!(upload.category_id.is_none());
+        assert_eq!(upload.title(), "Title Only");
+        assert!(upload.description().is_none());
+        assert!(upload.tags().is_empty());
+        assert_eq!(upload.visibility(), Visibility::Private);
+        assert!(upload.category_id().is_none());
     }
 
     #[test]
     fn test_video_upload_builder_returns_self() {
         let upload = VideoUpload::new("/tmp/video.mp4", "Title");
         let upload2 = VideoUpload::new("/tmp/video.mp4", "Title").with_visibility(Visibility::Unlisted);
-        assert_eq!(upload.visibility, Visibility::Public);
-        assert_eq!(upload2.visibility, Visibility::Unlisted);
+        assert_eq!(upload.visibility(), Visibility::Private);
+        assert_eq!(upload2.visibility(), Visibility::Unlisted);
     }
 
     #[tokio::test]

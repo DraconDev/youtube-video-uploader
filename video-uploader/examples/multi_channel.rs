@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Upload to the "gaming" workspace
     let gaming_uploader = YouTubeUploader::new(store.clone(), &passphrase, "gaming");
     let gaming_video = VideoUpload::new("./gameplay.mp4", "Let's Play")
-        .with_visibility(Visibility::Public);
+        .with_visibility(Visibility::Private);
 
     // Upload to the "cooking" workspace
     let cooking_uploader = YouTubeUploader::new(store.clone(), &passphrase, "cooking");

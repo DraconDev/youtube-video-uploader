@@ -138,41 +138,9 @@ fn proptest_is_private_ip_private_ips_accepted() {
     }
 }
 
-#[test]
-fn proptest_pkce_pair_verifies_correctly() {
-    use sha2::{Digest, Sha256};
-    use video_uploader::auth::device_code::generate_pkce_pair;
-
-    for _ in 0..100 {
-        let (verifier, challenge) = generate_pkce_pair();
-
-        // Verify: challenge = base64url(SHA256(verifier))
-        let hash = Sha256::digest(verifier.as_bytes());
-        let expected =
-            base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, hash);
-
-        assert_eq!(
-            challenge, expected,
-            "PKCE pair verification failed: verifier={}, challenge={}, expected={}",
-            verifier, challenge, expected
-        );
-    }
-}
-
-#[test]
-fn proptest_pkce_verifier_length_is_valid() {
-    use video_uploader::auth::device_code::generate_pkce_pair;
-
-    for _ in 0..100 {
-        let (verifier, _challenge) = generate_pkce_pair();
-        assert!(
-            verifier.len() >= 43 && verifier.len() <= 128,
-            "PKCE verifier should be 43-128 chars, got {}: {}",
-            verifier.len(),
-            verifier
-        );
-    }
-}
+// PKCE tests removed: device code flow does not use PKCE.
+// Google's device code flow rejects code_verifier in the token exchange.
+// PKCE is still correctly used in the auth_code (browser) flow.
 
 #[test]
 fn proptest_credential_store_roundtrip_random_data() {
