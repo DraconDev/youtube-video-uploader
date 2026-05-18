@@ -185,6 +185,20 @@ impl UploadProfile {
             Ok(Self::default())
         }
     }
+
+    /// Delete a profile by name.
+    pub fn remove(name: &str) -> Result<(), UploadError> {
+        let dir = Self::profiles_dir()?;
+        let path = dir.join(format!("{name}.toml"));
+        if !path.exists() {
+            return Err(UploadError::Config(format!(
+                "Profile '{name}' does not exist"
+            )));
+        }
+        std::fs::remove_file(&path).map_err(|e| {
+            UploadError::Config(format!("Failed to remove profile '{name}': {e}"))
+        })
+    }
 }
 
 impl VideoMeta {

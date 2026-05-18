@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-18
+
+### Added
+- **Upload profiles**: TOML-based presets in `~/.config/video-uploader/profiles/<name>.toml`
+- **Per-video metadata TOML**: `--meta <path>` flag + auto-discover `video.meta.toml` next to video file
+- **`profile` subcommand**: `profile list`, `profile show <name>`, `profile remove <name>`
+- **`--output json`**: Machine-readable JSON output for upload results (automation/CI)
+- **`--version`**: Print version number
+- **`--profile` / `-P`**: Select upload profile globally
+- **`--meta`**: Explicit per-video metadata TOML path
+- **New metadata fields**: `license`, `language`, `contains_synthetic_media`, `embeddable`, `public_stats_viewable`, `description_suffix`, `publish_at`
+- **CLI flags for all new fields**: `--license`, `--language`, `--contains-synthetic-media`, `--embeddable`, `--public-stats-viewable`, `--publish-at`, `--description-suffix`
+- **`License` enum**: `youtube` / `creative-common` with `FromStr`/`Display`
+- **Pretty-print output**: Boxed headers, key-value layout, ✔/✘/⚠ icons via `output.rs` module
+- **Descriptive subcommand help**: All commands have clear descriptions
+- **Auth code flow**: Browser-based fallback when device code fails with `invalid_client`
+- **Batch CSV `profile` column**: Per-row profile selection in batch uploads
+- **Batch meta TOML resolution**: Batch uploads support auto-discovered `.meta.toml` files
+- **`dotenvy` integration**: `.env` file for OAuth2 client credentials
+
+### Changed
+- **Resolution order**: CLI flags > meta TOML > profile TOML > built-in defaults
+- **Default visibility = Private everywhere**: Batch CSV now defaults to `private` (was incorrectly `public`)
+- **`--visibility` is now optional**: No default_value in CLI; defaults come from profile/built-in
+- **Profile `list` simplified**: Shows names only; use `profile show <name>` for details
+- **`UploadResult` now serializable**: Supports `--output json` with `serde::Serialize`
+- **`VideoUpload.with_title()`**: Allows meta/profile to override title before CLI
+- **Shared `TokenResponse` type**: Unified between device code and auth code flows
+- **Removed PKCE from device code flow**: Google TV/Limited Input clients reject `code_verifier`
+
+### Fixed
+- Batch CSV visibility default was `public` — now `private` (safety-first)
+- CLI tests updated for stderr-based pretty output format
+
 ## [0.2.0] - 2026-05-17
 
 ### Added

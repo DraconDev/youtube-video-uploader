@@ -299,7 +299,7 @@ impl VideoUpload {
 /// assert_eq!(result.workspace, "youtube");
 /// assert_eq!(result.video_id, "dQw4w9WgXcQ");
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[non_exhaustive]
 pub struct UploadResult {
     pub workspace: String,

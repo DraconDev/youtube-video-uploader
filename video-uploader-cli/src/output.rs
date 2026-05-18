@@ -166,19 +166,64 @@ pub fn profile_list(profiles: &[(String, video_uploader::UploadProfile)]) {
         eprintln!("  Create one at: ~/.config/video-uploader/profiles/<name>.toml");
     } else {
         sub_header("Upload Profiles");
-        for (name, p) in profiles {
-            let vis = p.visibility.as_deref().unwrap_or("(default)");
-            let cat = p.category.as_deref().unwrap_or("(default)");
-            let kids = p.made_for_kids
-                .map(|b| if b { "yes" } else { "no" })
-                .unwrap_or("-");
-            let lic = p.license.as_deref().unwrap_or("(default)");
-            let lang = p.language.as_deref().unwrap_or("-");
+        for (name, _p) in profiles {
             eprintln!("  \u{2022} {name}");
-            eprintln!("      vis={vis}  cat={cat}  kids={kids}  lic={lic}  lang={lang}");
         }
         eprintln!();
-        info("Edit profiles at ~/.config/video-uploader/profiles/");
+        info("Use 'profile show <name>' to see details");
+        eprintln!("  Edit profiles at ~/.config/video-uploader/profiles/");
+    }
+}
+
+/// Print the full contents of a profile.
+pub fn profile_show(name: &str, p: &video_uploader::UploadProfile) {
+    sub_header(&format!("Profile: {name}"));
+    if let Some(ref v) = p.visibility {
+        kv("Visibility", v);
+    }
+    if let Some(ref c) = p.category {
+        kv("Category", c);
+    }
+    if let Some(k) = p.made_for_kids {
+        kv("Made for kids", if k { "yes" } else { "no" });
+    }
+    if let Some(ref l) = p.license {
+        kv("License", l);
+    }
+    if let Some(ref l) = p.language {
+        kv("Language", l);
+    }
+    if let Some(s) = p.contains_synthetic_media {
+        kv("Synthetic media", if s { "yes" } else { "no" });
+    }
+    if let Some(e) = p.embeddable {
+        kv("Embeddable", if e { "yes" } else { "no" });
+    }
+    if let Some(v) = p.public_stats_viewable {
+        kv("Public stats", if v { "yes" } else { "no" });
+    }
+    if let Some(ref t) = p.tags {
+        kv("Tags", &t.join(", "));
+    }
+    if let Some(ref s) = p.description_suffix {
+        kv("Desc suffix", s);
+    }
+    if let Some(ref d) = p.publish_at {
+        kv("Publish at", d);
+    }
+    eprintln!();
+}
+
+/// Print profile removed confirmation.
+pub fn profile_removed(name: &str) {
+    success(&format!("Profile '{name}' removed"));
+}
+
+/// Print the upload result as JSON (for automation/CI).
+pub fn upload_result_json(result: &video_uploader::UploadResult) {
+    match serde_json::to_string_pretty(result) {
+        Ok(json) => println!("{json}"),
+        Err(e) => eprintln!("Error serializing result: {e}"),
     }
 }
 

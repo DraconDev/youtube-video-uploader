@@ -11,7 +11,7 @@ use video_uploader::{
 
 #[derive(Parser)]
 #[command(name = "video-uploader")]
-#[command(about = "Upload videos to YouTube via the Data API v3")]
+#[command(about = "Upload videos to YouTube via the Data API v3", version)]
 struct Cli {
     #[arg(short, long)]
     passphrase: Option<String>,
@@ -35,6 +35,10 @@ struct Cli {
         help = "Upload profile name (from ~/.config/video-uploader/profiles/<name>.toml)"
     )]
     profile: Option<String>,
+
+    /// Output format: human (pretty-printed) or json (machine-readable)
+    #[arg(long, global = true, default_value = "human")]
+    output: OutputFormat,
 
     #[command(subcommand)]
     command: Commands,
@@ -119,8 +123,11 @@ enum Commands {
         action: WorkspaceAction,
     },
 
-    /// List available upload profiles
-    Profile,
+    /// Manage upload profiles
+    Profile {
+        #[command(subcommand)]
+        action: ProfileAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -135,6 +142,28 @@ enum WorkspaceAction {
     Remove {
         name: String,
     },
+}
+
+/// Subcommands for managing upload profiles.
+#[derive(clap::Subcommand, Debug)]
+enum ProfileAction {
+    /// List available profiles
+    List,
+    /// Show the contents of a profile
+    Show {
+        name: String,
+    },
+    /// Delete a profile
+    Remove {
+        name: String,
+    },
+}
+
+#[derive(clap::ValueEnum, Clone, Default, Debug)]
+enum OutputFormat {
+    #[default]
+    Human,
+    Json,
 }
 
 #[derive(clap::ValueEnum, Clone, Default, Debug)]
@@ -163,6 +192,7 @@ struct BatchEntry {
     tags: Vec<String>,
     visibility: VisibilityArg,
     workspace: Option<String>,
+    profile: Option<String>,
 }
 
 fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
@@ -231,11 +261,12 @@ fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
             })
             .unwrap_or_default();
         let visibility = match get("visibility").as_deref() {
-            Some("private") => VisibilityArg::Private,
+            Some("public") => VisibilityArg::Public,
             Some("unlisted") => VisibilityArg::Unlisted,
-            _ => VisibilityArg::Public,
+            _ => VisibilityArg::Private,
         };
         let workspace = get("workspace");
+        let profile = get("profile");
 
         entries.push(BatchEntry {
             file: canonical_file.to_string_lossy().to_string(),
@@ -244,6 +275,7 @@ fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
             tags,
             visibility,
             workspace,
+            profile,
         });
     }
 
@@ -515,13 +547,20 @@ async fn main() -> anyhow::Result<()> {
             let progress = Arc::new(StderrProgressListener);
             match youtube.upload(&video, Some(progress.clone())).await {
                 Ok(r) => {
-                    output::upload_result(
-                        &r.workspace,
-                        &r.video_id,
-                        &r.url,
-                        &r.title,
-                        &video.visibility().to_string(),
-                    );
+                    match cli.output {
+                        OutputFormat::Human => {
+                            output::upload_result(
+                                &r.workspace,
+                                &r.video_id,
+                                &r.url,
+                                &r.title,
+                                &video.visibility().to_string(),
+                            );
+                        }
+                        OutputFormat::Json => {
+                            output::upload_result_json(&r);
+                        }
+                    }
                 }
                 Err(e) => {
                     return Err(anyhow::anyhow!("Upload failed: {e}"));
@@ -550,7 +589,6 @@ async fn main() -> anyhow::Result<()> {
             let mut validation_errors = Vec::new();
             for (i, entry) in entries.iter().enumerate() {
                 let video = VideoUpload::new(expand_tilde(&entry.file), &entry.title)
-                    .with_description(entry.description.clone().unwrap_or_default())
                     .with_tags(entry.tags.clone())
                     .with_visibility(entry.visibility.clone().into());
                 if let Err(e) = video_uploader::validation::validate(&video).await {
@@ -567,6 +605,7 @@ async fn main() -> anyhow::Result<()> {
             let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
             let progress = Arc::new(StderrProgressListener);
             let semaphore = Arc::new(Semaphore::new(concurrency));
+            let global_profile = cli.profile.clone();
             let total = entries.len();
             let mut handles = Vec::with_capacity(total);
 
@@ -575,6 +614,7 @@ async fn main() -> anyhow::Result<()> {
                 let store = Arc::clone(&store);
                 let passphrase = passphrase.clone();
                 let progress = Arc::clone(&progress);
+                let row_global_profile = global_profile.clone();
                 let semaphore = Arc::clone(&semaphore);
 
                 handles.push(tokio::spawn(async move {
@@ -592,10 +632,47 @@ async fn main() -> anyhow::Result<()> {
                     };
                     drop(store_guard);
 
-                    let video = VideoUpload::new(expand_tilde(&entry.file), &entry.title)
-                        .with_description(entry.description.clone().unwrap_or_default())
-                        .with_tags(entry.tags.clone())
-                        .with_visibility(entry.visibility.clone().into());
+                    let video = {
+                        // Per-row profile: CSV profile column > --profile flag
+                        let row_profile = entry.profile.as_deref().or(row_global_profile.as_deref());
+                        let profile = match video_uploader::UploadProfile::resolve(row_profile) {
+                            Ok(p) => p,
+                            Err(e) => {
+                                output::print_error(&format!("Profile error: {e}"));
+                                return 1u32;
+                            }
+                        };
+
+                        // Auto-discover meta TOML for this video
+                        let meta_path = video_uploader::VideoMeta::discover(
+                            std::path::Path::new(&expand_tilde(&entry.file))
+                        );
+                        let video_meta = match meta_path {
+                            Some(ref path) => match video_uploader::VideoMeta::load_from(path) {
+                                Ok(m) => m,
+                                Err(e) => {
+                                    output::print_error(&format!("Meta error: {e}"));
+                                    return 1u32;
+                                }
+                            },
+                            None => video_uploader::VideoMeta::default(),
+                        };
+
+                        // Resolution: profile → meta → CSV fields
+                        let mut v = VideoUpload::new(expand_tilde(&entry.file), &entry.title);
+                        v = v.apply_profile(&profile);
+                        v = video_meta.apply_to(v);
+
+                        // CSV fields (CLI-equivalent, highest priority)
+                        if let Some(ref desc) = entry.description {
+                            v = v.with_description(desc);
+                        }
+                        if !entry.tags.is_empty() {
+                            v = v.with_tags(entry.tags.clone());
+                        }
+                        v = v.with_visibility(entry.visibility.clone().into());
+                        v
+                    };
 
                     let youtube = YouTubeUploader::new(store, &passphrase, &ws);
                     match youtube.upload(&video, Some(progress.clone())).await {
@@ -612,10 +689,16 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let mut failures = 0u32;
+            let mut batch_results: Vec<u32> = Vec::new();
             for handle in handles {
-                failures += handle
+                let result = handle
                     .await
                     .map_err(|e| anyhow::anyhow!("Task join: {e}"))?;
+                if result > 0 {
+                    failures += result;
+                }
+                // Note: we don't collect individual video results from spawned tasks yet.
+                // For full JSON batch output, we'd need to return Result<UploadResult, String> instead of u32.
             }
 
             if failures > 0 {
@@ -626,7 +709,17 @@ async fn main() -> anyhow::Result<()> {
                 ));
             }
             let succeeded = total - validation_errors.len();
-            output::batch_summary(total, succeeded, validation_errors.len());
+            match cli.output {
+                OutputFormat::Human => output::batch_summary(total, succeeded, validation_errors.len()),
+                OutputFormat::Json => {
+                    let summary = serde_json::json!({
+                        "total": total,
+                        "succeeded": succeeded,
+                        "failed": validation_errors.len(),
+                    });
+                    println!("{summary}");
+                }
+            }
         }
 
         Commands::List => {
@@ -684,10 +777,22 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Commands::Profile => {
-            let profiles_map = video_uploader::UploadProfile::list()?;
-            let profiles: Vec<_> = profiles_map.into_iter().collect();
-            output::profile_list(&profiles);
+        Commands::Profile { action } => {
+            match action {
+                ProfileAction::List => {
+                    let profiles_map = video_uploader::UploadProfile::list()?;
+                    let profiles: Vec<_> = profiles_map.into_iter().collect();
+                    output::profile_list(&profiles);
+                }
+                ProfileAction::Show { name } => {
+                    let profile = video_uploader::UploadProfile::load(&name)?;
+                    output::profile_show(&name, &profile);
+                }
+                ProfileAction::Remove { name } => {
+                    video_uploader::UploadProfile::remove(&name)?;
+                    output::profile_removed(&name);
+                }
+            }
         }
     }
 
