@@ -544,7 +544,7 @@ async fn main() -> anyhow::Result<()> {
                 video = video.with_description_suffix(suffix);
             }
 
-            let progress = Arc::new(StderrProgressListener);
+            let progress = Arc::new(StderrProgressListener::new());
             match youtube.upload(&video, Some(progress.clone())).await {
                 Ok(r) => {
                     match cli.output {
@@ -603,7 +603,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
-            let progress = Arc::new(StderrProgressListener);
+            let progress = Arc::new(StderrProgressListener::new());
             let semaphore = Arc::new(Semaphore::new(concurrency));
             let global_profile = cli.profile.clone();
             let total = entries.len();

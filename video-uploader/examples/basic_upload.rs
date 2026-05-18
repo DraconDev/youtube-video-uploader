@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_tags(vec!["rust".into(), "programming".into()])
         .with_visibility(Visibility::Private);
 
-    let progress = Arc::new(StderrProgressListener);
+    let progress = Arc::new(StderrProgressListener::new());
     let result = uploader.upload(&video, Some(progress)).await?;
 
     println!("✓ Uploaded: {} (ID: {})", result.url, result.video_id);
