@@ -211,6 +211,9 @@ pub fn profile_show(name: &str, p: &video_uploader::UploadProfile) {
     if let Some(ref d) = p.publish_at {
         kv("Publish at", d);
     }
+    if let Some(ref d) = p.recording_date {
+        kv("Recording date", d);
+    }
     eprintln!();
 }
 
