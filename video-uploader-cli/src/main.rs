@@ -45,6 +45,7 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum Commands {
     /// Authenticate with YouTube (one-time per workspace)
     Auth {

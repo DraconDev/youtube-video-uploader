@@ -386,7 +386,7 @@ impl YouTubeUploader {
             "snippet": snippet,
             "status": status
         });
-        if !recording_details.as_object().map_or(true, |o| o.is_empty()) {
+        if !recording_details.as_object().is_none_or(|o| o.is_empty()) {
             metadata["recordingDetails"] = recording_details;
         }
 
