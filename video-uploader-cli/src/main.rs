@@ -69,7 +69,7 @@ enum Commands {
         #[arg(long, help = "Comma-separated tags")]
         tags: Option<String>,
 
-        #[arg(long, short, help = "Visibility: public, unlisted, private (default: private)")]
+        #[arg(long, short, help = "Visibility: public, unlisted, private (default from profile/built-in: private)")]
         visibility: Option<VisibilityArg>,
 
         #[arg(long, help = "YouTube category ID (default: 22 People & Blogs)")]
