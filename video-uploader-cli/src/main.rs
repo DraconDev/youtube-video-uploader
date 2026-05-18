@@ -689,7 +689,6 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let mut failures = 0u32;
-            let mut batch_results: Vec<u32> = Vec::new();
             for handle in handles {
                 let result = handle
                     .await
