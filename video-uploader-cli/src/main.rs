@@ -98,6 +98,9 @@ enum Commands {
         #[arg(long, help = "Text to append to the description")]
         description_suffix: Option<String>,
 
+        #[arg(long, help = "Recording date (ISO 8601, e.g. 2026-05-18)")]
+        recording_date: Option<String>,
+
         #[arg(long, help = "Path to per-video metadata TOML (auto-discovered: <video>.meta.toml)")]
         meta: Option<String>,
     },
@@ -469,6 +472,7 @@ async fn main() -> anyhow::Result<()> {
             public_stats_viewable,
             publish_at,
             description_suffix,
+            recording_date,
             meta,
         } => {
             let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
@@ -542,6 +546,9 @@ async fn main() -> anyhow::Result<()> {
             }
             if let Some(ref suffix) = description_suffix {
                 video = video.with_description_suffix(suffix);
+            }
+            if let Some(ref date) = recording_date {
+                video = video.with_recording_date(date);
             }
 
             let progress = Arc::new(StderrProgressListener::new());
