@@ -435,3 +435,21 @@ fn cli_workspace_rename_nonexistent() {
         stderr
     );
 }
+
+#[test]
+fn cli_channel_help() {
+    let mut cmd = video_uploader();
+    cmd.args(["channel", "--help"]);
+    let output = cmd.output().unwrap();
+    assert!(output.status.success());
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        combined.contains("Workspace"),
+        "expected Workspace in channel help, got: {}",
+        combined
+    );
+}
