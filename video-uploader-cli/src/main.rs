@@ -661,7 +661,7 @@ async fn main() -> anyhow::Result<()> {
                         Ok(w) => w,
                         Err(e) => {
                             output::print_error(&format!("Workspace error: {e}"));
-                            return 1u32;
+                            return Err(format!("Workspace error: {e}"));
                         }
                     };
                     drop(store_guard);
@@ -673,7 +673,7 @@ async fn main() -> anyhow::Result<()> {
                             Ok(p) => p,
                             Err(e) => {
                                 output::print_error(&format!("Profile error: {e}"));
-                                return 1u32;
+                                return Err(format!("Profile error: {e}"));
                             }
                         };
 
@@ -686,7 +686,7 @@ async fn main() -> anyhow::Result<()> {
                                 Ok(m) => m,
                                 Err(e) => {
                                     output::print_error(&format!("Meta error: {e}"));
-                                    return 1u32;
+                                    return Err(format!("Meta error: {e}"));
                                 }
                             },
                             None => video_uploader::VideoMeta::default(),
@@ -712,11 +712,11 @@ async fn main() -> anyhow::Result<()> {
                     match youtube.upload(&video, Some(progress.clone())).await {
                         Ok(r) => {
                             output::batch_item_result(&r.url, &r.video_id);
-                            0u32
+                            Ok(r)
                         }
                         Err(e) => {
                             output::batch_item_error(&e.to_string());
-                            1u32
+                            Err(e.to_string())
                         }
                     }
                 }));
