@@ -311,6 +311,7 @@ mod tests {
         assert!(p.tags.is_none());
         assert!(p.description_suffix.is_none());
         assert!(p.publish_at.is_none());
+        assert!(p.recording_date.is_none());
     }
 
     #[test]
@@ -383,6 +384,7 @@ publish_at = "2026-05-20T09:00:00Z"
         assert!(m.public_stats_viewable.is_none());
         assert!(m.description_suffix.is_none());
         assert!(m.publish_at.is_none());
+        assert!(m.recording_date.is_none());
         assert!(m.profile.is_none());
     }
 
