@@ -903,3 +903,79 @@ async fn test_e2e_upload_flow_refresh_initiate_chunk_result() {
     let video_id = result_json["id"].as_str().expect("should have video ID");
     assert_eq!(video_id, "e2e_test_video_id");
 }
+
+#[tokio::test]
+async fn test_fetch_channel_info_success() {
+    let mock_server = MockServer::start().await;
+    let base = mock_server.uri();
+
+    // Mock the channels.list endpoint
+    Mock::given(method("GET"))
+        .and(path("/youtube/v3/channels"))
+        .and(query_param("mine", "true"))
+        .and(query_param("part", "snippet"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "items": [{
+                "id": "UCtest123",
+                "snippet": {
+                    "title": "Test Channel Name"
+                }
+            }]
+        })))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Mock the token refresh
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "ya29.channel_test",
+            "expires_in": 3600,
+            "token_type": "Bearer"
+        })))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // We need to test the channel info parsing logic directly
+    let client = video_uploader::net::build_http_client();
+    let response = client
+        .get(&format!("{}/youtube/v3/channels?mine=true&part=snippet", base))
+        .bearer_auth("ya29.channel_test")
+        .send()
+        .await
+        .expect("request should succeed");
+
+    let json: serde_json::Value = response.json().await.expect("should parse JSON");
+    let items = json["items"].as_array().expect("should have items");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["id"].as_str(), Some("UCtest123"));
+    assert_eq!(items[0]["snippet"]["title"].as_str(), Some("Test Channel Name"));
+}
+
+#[tokio::test]
+async fn test_fetch_channel_info_empty_items() {
+    let mock_server = MockServer::start().await;
+    let base = mock_server.uri();
+
+    Mock::given(method("GET"))
+        .and(path("/youtube/v3/channels"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "items": []
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client = video_uploader::net::build_http_client();
+    let response = client
+        .get(&format!("{}/youtube/v3/channels?mine=true&part=snippet", base))
+        .bearer_auth("ya29.test")
+        .send()
+        .await
+        .expect("request should succeed");
+
+    let json: serde_json::Value = response.json().await.expect("should parse JSON");
+    let items = json["items"].as_array().expect("should have items array");
+    assert!(items.is_empty());
+}

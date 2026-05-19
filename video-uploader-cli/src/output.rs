@@ -542,4 +542,52 @@ mod tests {
         let lines = wrap_text("", 80);
         assert_eq!(lines, vec![""]);
     }
+
+    #[test]
+    fn test_wrap_text_single_word() {
+        let lines = wrap_text("supercalifragilisticexpialidocious", 10);
+        // Single word longer than max_width is not split
+        assert_eq!(lines.len(), 1);
+    }
+
+    #[test]
+    fn test_kv_bool_format() {
+        // Smoke test: just ensure these don't panic
+        kv_bool("Feature", true);
+        kv_bool("Feature", false);
+    }
+
+    #[test]
+    fn test_header_does_not_panic() {
+        header("Short");
+        header("This is a very long header title that exceeds the minimum");
+    }
+
+    #[test]
+    fn test_sub_header_does_not_panic() {
+        sub_header("Profiles");
+    }
+
+    #[test]
+    fn test_version_banner_does_not_panic() {
+        version_banner("0.4.4");
+    }
+
+    #[test]
+    fn test_validation_errors_format() {
+        validation_errors(&[
+            "Row 1: File not found".into(),
+            "Row 3: Title cannot be empty".into(),
+        ]);
+    }
+
+    #[test]
+    fn test_validation_errors_empty_is_noop() {
+        validation_errors(&[]);
+    }
+
+    #[test]
+    fn test_batch_csv_missing_columns() {
+        batch_csv_missing_columns(&["description", "tags"]);
+    }
 }

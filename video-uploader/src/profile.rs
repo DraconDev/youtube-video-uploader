@@ -533,7 +533,7 @@ visibility = "public"
     fn test_video_meta_apply_to_all_fields() {
         use crate::{VideoUpload, Visibility};
 
-        let meta: VideoMeta = toml::from_str(r#"
+        let meta: VideoMeta = toml::from_str(r##"
 title = "Meta Title"
 description = "Meta Desc"
 tags = ["a", "b"]
@@ -548,10 +548,8 @@ public_stats_viewable = true
 description_suffix = "\nSuffix"
 publish_at = "2026-08-01T00:00:00Z"
 recording_date = "2026-05-18"
-"#").unwrap();
+"##).unwrap();
 
-        let video = VideoUpload::new("/tmp/v.mp4", "Original").apply_meta(&meta);
-        // Can't call apply_meta directly — it's in profile.rs. Use apply_to instead.
         let video = meta.apply_to(VideoUpload::new("/tmp/v.mp4", "Original"));
 
         assert_eq!(video.title(), "Meta Title");
