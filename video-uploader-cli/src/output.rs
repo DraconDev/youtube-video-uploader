@@ -119,6 +119,7 @@ pub fn print_error(msg: &str) {
 // ─── List helpers ───────────────────────────────────────────────────
 
 /// Print a list item with a bullet.
+#[allow(dead_code)]
 pub fn bullet(text: &str) {
     eprintln!("  \u{2022} {text}");
 }
@@ -129,16 +130,19 @@ pub fn numbered(n: usize, text: &str) {
 }
 
 /// Print a labeled list item (key: value).
+#[allow(dead_code)]
 pub fn bullet_kv(label: &str, value: &str) {
     eprintln!("  \u{2022} {}: {}", label, value);
 }
 
 /// Print a blank line (thin spacer).
+#[allow(dead_code)]
 pub fn spacer() {
     eprintln!();
 }
 
 /// Print a divider line.
+#[allow(dead_code)]
 pub fn divider() {
     eprintln!("  {}", "─".repeat(50));
 }
@@ -152,6 +156,7 @@ pub fn divider() {
 ///   ║        video-uploader v0.4       ║
 ///   ╚══════════════════════════════════╝
 /// ```
+#[allow(dead_code)]
 pub fn version_banner(version: &str) {
     let label = format!("video-uploader v{version}");
     let width = label.len().max(30);
@@ -223,6 +228,7 @@ pub fn upload_result(
 }
 
 /// Print the upload result with full metadata.
+#[allow(dead_code)]
 pub fn upload_result_full(
     workspace: &str,
     video_id: &str,
@@ -299,6 +305,7 @@ pub fn batch_summary(total: usize, succeeded: usize, failed: usize) {
 }
 
 /// Print the batch result summary with per-video details.
+#[allow(dead_code)]
 pub fn batch_summary_detailed(
     total: usize,
     succeeded: usize,
@@ -463,6 +470,7 @@ pub fn profile_removed(name: &str) {
 // ─── Validation / quota display ─────────────────────────────────────
 
 /// Print quota information after an upload.
+#[allow(dead_code)]
 pub fn quota_info(used: u64, total: u64) {
     let pct = (used as f64 / total as f64 * 100.0) as u64;
     let bar_len = 20;
@@ -472,6 +480,7 @@ pub fn quota_info(used: u64, total: u64) {
 }
 
 /// Print validation errors.
+#[allow(dead_code)]
 pub fn validation_errors(errors: &[String]) {
     if errors.is_empty() {
         return;
