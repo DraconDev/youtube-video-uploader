@@ -201,4 +201,36 @@ mod tests {
         assert!(dir.to_string_lossy().contains("video-uploader"));
         assert!(dir.to_string_lossy().contains("resume"));
     }
+
+    #[test]
+    fn test_upload_state_save_and_load_roundtrip() {
+        let dir = std::env::temp_dir().join("vu_test_resume_roundtrip");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Override resume dir by using a temp-based path
+        let state = UploadState {
+            upload_url: "https://storage.googleapis.com/upload/test".to_string(),
+            uploaded_bytes: 1_048_576,
+            total_size: 10_000_000,
+            file_path: PathBuf::from(dir.join("video.mp4")),
+            title: "Resume Test".to_string(),
+            workspace: "youtube".to_string(),
+        };
+
+        let saved_path = state.save().unwrap();
+        assert!(saved_path.exists());
+
+        let content = std::fs::read_to_string(&saved_path).unwrap();
+        let loaded: UploadState = serde_json::from_str(&content).unwrap();
+        assert_eq!(loaded.upload_url, state.upload_url);
+        assert_eq!(loaded.uploaded_bytes, state.uploaded_bytes);
+        assert_eq!(loaded.total_size, state.total_size);
+        assert_eq!(loaded.title, state.title);
+
+        // Delete and verify
+        state.delete().unwrap();
+        assert!(!saved_path.exists());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }
