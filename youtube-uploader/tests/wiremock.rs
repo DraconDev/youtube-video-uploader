@@ -4,14 +4,14 @@
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use wiremock::{
+    Mock, MockServer, ResponseTemplate,
+    matchers::{body_string_contains, method, path, query_param},
+};
 use youtube_uploader::{
     UploadError, YouTubeUploader,
     config::{CredentialStore, PlatformCredentials},
     upload::VideoUpload,
-};
-use wiremock::{
-    Mock, MockServer, ResponseTemplate,
-    matchers::{body_string_contains, method, path, query_param},
 };
 
 // ---------------------------------------------------------------------------

@@ -471,8 +471,11 @@ async fn main() -> anyhow::Result<()> {
                         tracing::info!(
                             "Device code flow not supported for this client type, switching to browser auth..."
                         );
-                        youtube_uploader::auth::auth_code::auth_code_flow(&client_id, &client_secret)
-                            .await?
+                        youtube_uploader::auth::auth_code::auth_code_flow(
+                            &client_id,
+                            &client_secret,
+                        )
+                        .await?
                     } else {
                         return Err(anyhow::anyhow!("Auth failed: {e}"));
                     }
@@ -713,9 +716,9 @@ async fn main() -> anyhow::Result<()> {
                         };
 
                         // Auto-discover meta TOML for this video
-                        let meta_path = youtube_uploader::VideoMeta::discover(std::path::Path::new(
-                            &expand_tilde(&entry.file),
-                        ));
+                        let meta_path = youtube_uploader::VideoMeta::discover(
+                            std::path::Path::new(&expand_tilde(&entry.file)),
+                        );
                         let video_meta = match meta_path {
                             Some(ref path) => match youtube_uploader::VideoMeta::load_from(path) {
                                 Ok(m) => m,
