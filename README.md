@@ -60,6 +60,10 @@ println!("Uploaded: {} (workspace: {})", result.url, result.workspace);
 - **Encrypted credential storage**: AES-256-GCM, PBKDF2 100K, zeroize on drop
 - **Default visibility = Private**: Uploads never accidentally go public
 
+## Badges
+
+[![crates.io](https://img.shields.io/crates/v/youtube-uploader.svg)](https://crates.io/crates/youtube-uploader) [![docs.rs](https://docs.rs/youtube-uploader/badge.svg)](https://docs.rs/youtube-uploader) [![MIT License](https://img.shields.io/crates/l/youtube-uploader.svg)](https://github.com/DraconDev/youtube-video-uploader/blob/main/LICENSE)
+
 ## Installation
 
 ```bash
