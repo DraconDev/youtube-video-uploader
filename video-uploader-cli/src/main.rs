@@ -307,11 +307,7 @@ fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
         .copied()
         .collect();
     if !missing_optional.is_empty() {
-        eprintln!(
-            "  \u{26A0} Note: CSV manifest is missing optional columns: {}",
-            missing_optional.join(", ")
-        );
-        eprintln!("  Available: file, title, description, tags, visibility, workspace, profile");
+        output::batch_csv_missing_columns(&missing_optional);
     }
 
     Ok(entries)
@@ -416,7 +412,7 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let passphrase = get_passphrase(cli.passphrase.as_deref(), cli.passphrase_file.as_deref())
         .map_err(|e| {
-            eprintln!("error: {}", e);
+            output::print_error(&format!("{e}"));
             anyhow::anyhow!("{}", e)
         })?;
 
@@ -638,7 +634,7 @@ async fn main() -> anyhow::Result<()> {
             concurrency,
         } => {
             let entries = parse_csv_manifest(&manifest)?;
-            println!("Batch manifest loaded: {} video(s)", entries.len());
+            output::info(&format!("Batch manifest loaded: {} video(s)", entries.len()));
 
             if dry_run {
                 let preview: Vec<(String, String, Option<String>)> = entries
@@ -660,10 +656,8 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
             if !validation_errors.is_empty() {
-                return Err(anyhow::anyhow!(
-                    "Validation failed:\n{}",
-                    validation_errors.join("\n")
-                ));
+                output::validation_errors(&validation_errors);
+                return Err(anyhow::anyhow!("Validation failed"));
             }
 
             let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
