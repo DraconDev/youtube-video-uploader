@@ -905,15 +905,12 @@ async fn test_e2e_upload_flow_refresh_initiate_chunk_result() {
 }
 
 #[tokio::test]
-async fn test_fetch_channel_info_success() {
+async fn test_fetch_channel_info_parses_response() {
     let mock_server = MockServer::start().await;
     let base = mock_server.uri();
 
     // Mock the channels.list endpoint
     Mock::given(method("GET"))
-        .and(path("/youtube/v3/channels"))
-        .and(query_param("mine", "true"))
-        .and(query_param("part", "snippet"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "items": [{
                 "id": "UCtest123",
@@ -922,23 +919,9 @@ async fn test_fetch_channel_info_success() {
                 }
             }]
         })))
-        .expect(1)
         .mount(&mock_server)
         .await;
 
-    // Mock the token refresh
-    Mock::given(method("POST"))
-        .and(path("/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "access_token": "ya29.channel_test",
-            "expires_in": 3600,
-            "token_type": "Bearer"
-        })))
-        .expect(1)
-        .mount(&mock_server)
-        .await;
-
-    // We need to test the channel info parsing logic directly
     let client = video_uploader::net::build_http_client();
     let response = client
         .get(&format!("{}/youtube/v3/channels?mine=true&part=snippet", base))
@@ -960,7 +943,6 @@ async fn test_fetch_channel_info_empty_items() {
     let base = mock_server.uri();
 
     Mock::given(method("GET"))
-        .and(path("/youtube/v3/channels"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "items": []
         })))

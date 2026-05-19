@@ -290,19 +290,19 @@ Quota resets daily at midnight Pacific Time.
 
 ## Test Coverage
 
-180 tests, clippy clean (`-D warnings`), `cargo deny` clean.
+213 tests, clippy clean (`-D warnings`), `cargo deny` clean.
 
 | Suite | Count | What it covers |
 |-------|-------|----------------|
-| Unit (`src/**/*.rs`) | 85 | Core logic, validation, crypto, profiles, IP checks |
-| Integration | 21 | CredentialStore roundtrip, migration, error variants |
-| CLI | 22 | Arg parsing, help flags, subcommands |
-| Wiremock | 19 | HTTP mocking for upload, auth, refresh flows |
+| Unit (`src/**/*.rs`) | 108 | Core logic, validation, crypto, profiles, IP checks, license, apply_profile, resume |
+| Integration | 21 | CredentialStore roundtrip, migration, error variants, VideoUpload getters |
+| CLI | 24 | Arg parsing, help flags, subcommands, output formatting |
+| Wiremock | 21 | HTTP mocking for upload, auth, refresh, channel info flows |
 | File I/O | 7 | Credential file persistence |
 | HTTP integration | 6 | Real HTTP edge cases |
 | Proptest | 11 | Property-based: `is_private_ip`, credential roundtrip |
 | Fuzz | 4 | Credential decrypt, input validation |
-| Output | 3 | Text wrapping |
+| Output | 11 | Text wrapping, headers, banners, validation errors, bool formatting |
 
 ---
 
