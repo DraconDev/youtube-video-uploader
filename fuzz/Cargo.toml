@@ -1,17 +1,17 @@
 [package]
-name = "video-uploader-fuzz"
+name = "youtube-uploader-fuzz"
 version = "0.0.1"
 edition = "2021"
 publish = false
 
 [dependencies]
-video-uploader = { path = "../video-uploader", features = ["test-utils"] }
+youtube-uploader = { path = "../youtube-uploader", features = ["test-utils"] }
 proptest = "1.5"
 tempfile = "3"
 tokio = { version = "1.44", features = ["rt"] }
 
 [lib]
-name = "video_uploader_fuzz"
+name = "youtube_uploader_fuzz"
 path = "src/lib.rs"
 
 [[test]]

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use video_uploader::{
+use youtube_uploader::{
     ProgressListener, UploadError, Zeroizing,
     config::{CredentialStore, PlatformCredentials},
     upload::{VideoUpload, Visibility},
@@ -10,7 +10,7 @@ use video_uploader::{
 #[tokio::test]
 async fn test_youtube_uploader_requires_refresh_token() {
     let store = Arc::new(Mutex::new(CredentialStore::default()));
-    let yt = video_uploader::YouTubeUploader::new(store, "passphrase", "youtube");
+    let yt = youtube_uploader::YouTubeUploader::new(store, "passphrase", "youtube");
 
     let video = VideoUpload::new("tests/fixtures/video.mp4", "Test");
     let result = yt.upload(&video, None).await;
@@ -165,7 +165,7 @@ fn encrypt_store_to_file(
     store: &CredentialStore,
     passphrase: &str,
     path: &PathBuf,
-) -> Result<(), video_uploader::UploadError> {
+) -> Result<(), youtube_uploader::UploadError> {
     use aes_gcm::{
         Aes256Gcm, Nonce,
         aead::{Aead, Key, KeyInit},
@@ -173,10 +173,10 @@ fn encrypt_store_to_file(
     use pbkdf2::pbkdf2_hmac;
     use sha2::Sha256;
     use std::io::Write;
-    use video_uploader::config::{FORMAT_MAGIC, FORMAT_VERSION_V2, NONCE_SIZE, SALT_SIZE};
+    use youtube_uploader::config::{FORMAT_MAGIC, FORMAT_VERSION_V2, NONCE_SIZE, SALT_SIZE};
 
     let plaintext = toml::to_string(store).map_err(|e| {
-        video_uploader::UploadError::Encryption(format!("Failed to serialize: {e}"))
+        youtube_uploader::UploadError::Encryption(format!("Failed to serialize: {e}"))
     })?;
 
     let salt: [u8; SALT_SIZE] = rand::random();
@@ -188,20 +188,20 @@ fn encrypt_store_to_file(
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher
         .encrypt(nonce, plaintext.as_bytes())
-        .map_err(|e| video_uploader::UploadError::Encryption(format!("Encrypt failed: {e}")))?;
+        .map_err(|e| youtube_uploader::UploadError::Encryption(format!("Encrypt failed: {e}")))?;
 
-    let mut file = std::fs::File::create(path).map_err(video_uploader::UploadError::Io)?;
+    let mut file = std::fs::File::create(path).map_err(youtube_uploader::UploadError::Io)?;
     file.write_all(FORMAT_MAGIC)
-        .map_err(video_uploader::UploadError::Io)?;
+        .map_err(youtube_uploader::UploadError::Io)?;
     file.write_all(&[FORMAT_VERSION_V2])
-        .map_err(video_uploader::UploadError::Io)?;
+        .map_err(youtube_uploader::UploadError::Io)?;
     file.write_all(&salt)
-        .map_err(video_uploader::UploadError::Io)?;
+        .map_err(youtube_uploader::UploadError::Io)?;
     file.write_all(&nonce_bytes)
-        .map_err(video_uploader::UploadError::Io)?;
+        .map_err(youtube_uploader::UploadError::Io)?;
     file.write_all(&ciphertext)
-        .map_err(video_uploader::UploadError::Io)?;
-    file.sync_all().map_err(video_uploader::UploadError::Io)?;
+        .map_err(youtube_uploader::UploadError::Io)?;
+    file.sync_all().map_err(youtube_uploader::UploadError::Io)?;
 
     Ok(())
 }
@@ -209,7 +209,7 @@ fn encrypt_store_to_file(
 fn decrypt_store_from_file(
     passphrase: &str,
     path: &PathBuf,
-) -> Result<CredentialStore, video_uploader::UploadError> {
+) -> Result<CredentialStore, youtube_uploader::UploadError> {
     use aes_gcm::{
         Aes256Gcm, Nonce,
         aead::{Aead, Key, KeyInit},
@@ -217,16 +217,16 @@ fn decrypt_store_from_file(
     use pbkdf2::pbkdf2_hmac;
     use sha2::Sha256;
     use std::io::Read;
-    use video_uploader::config::{FORMAT_MAGIC, NONCE_SIZE, SALT_SIZE};
+    use youtube_uploader::config::{FORMAT_MAGIC, NONCE_SIZE, SALT_SIZE};
 
-    let mut file = std::fs::File::open(path).map_err(video_uploader::UploadError::Io)?;
+    let mut file = std::fs::File::open(path).map_err(youtube_uploader::UploadError::Io)?;
     let mut ciphertext = Vec::new();
     file.read_to_end(&mut ciphertext)
-        .map_err(video_uploader::UploadError::Io)?;
+        .map_err(youtube_uploader::UploadError::Io)?;
 
     let header_len = FORMAT_MAGIC.len() + 1 + SALT_SIZE + NONCE_SIZE;
     if ciphertext.len() < header_len {
-        return Err(video_uploader::UploadError::Encryption(
+        return Err(youtube_uploader::UploadError::Encryption(
             "File too short".into(),
         ));
     }
@@ -244,10 +244,10 @@ fn decrypt_store_from_file(
     let cipher = Aes256Gcm::new(key);
     let plaintext = cipher
         .decrypt(nonce, encrypted)
-        .map_err(|e| video_uploader::UploadError::Encryption(format!("Decrypt failed: {e}")))?;
+        .map_err(|e| youtube_uploader::UploadError::Encryption(format!("Decrypt failed: {e}")))?;
 
     let store: CredentialStore = toml::from_str(&String::from_utf8_lossy(&plaintext))
-        .map_err(|e| video_uploader::UploadError::Encryption(format!("Parse failed: {e}")))?;
+        .map_err(|e| youtube_uploader::UploadError::Encryption(format!("Parse failed: {e}")))?;
 
     Ok(store)
 }
@@ -261,7 +261,7 @@ fn test_credential_store_wrong_passphrase_returns_error() {
     use pbkdf2::pbkdf2_hmac;
     use sha2::Sha256;
     use std::io::Write;
-    use video_uploader::config::{FORMAT_MAGIC, FORMAT_VERSION_V2, NONCE_SIZE, SALT_SIZE};
+    use youtube_uploader::config::{FORMAT_MAGIC, FORMAT_VERSION_V2, NONCE_SIZE, SALT_SIZE};
 
     // Create and save a store with one passphrase
     let mut store = CredentialStore::default();
@@ -407,7 +407,7 @@ fn test_credential_store_special_chars_in_passphrase() {
 
 struct TestProgressListener {
     progress_calls: std::sync::Mutex<Vec<(u64, u64)>>,
-    complete_calls: std::sync::Mutex<Vec<video_uploader::UploadResult>>,
+    complete_calls: std::sync::Mutex<Vec<youtube_uploader::UploadResult>>,
     error_count: std::sync::Mutex<usize>,
 }
 
@@ -424,7 +424,7 @@ impl TestProgressListener {
         self.progress_calls.lock().unwrap().clone()
     }
 
-    fn get_complete_calls(&self) -> Vec<video_uploader::UploadResult> {
+    fn get_complete_calls(&self) -> Vec<youtube_uploader::UploadResult> {
         self.complete_calls.lock().unwrap().clone()
     }
 
@@ -433,16 +433,16 @@ impl TestProgressListener {
     }
 }
 
-impl video_uploader::ProgressListener for TestProgressListener {
+impl youtube_uploader::ProgressListener for TestProgressListener {
     fn on_progress(&self, uploaded: u64, total: u64) {
         self.progress_calls.lock().unwrap().push((uploaded, total));
     }
 
-    fn on_complete(&self, result: &video_uploader::UploadResult) {
+    fn on_complete(&self, result: &youtube_uploader::UploadResult) {
         self.complete_calls.lock().unwrap().push(result.clone());
     }
 
-    fn on_error(&self, _error: &video_uploader::UploadError) {
+    fn on_error(&self, _error: &youtube_uploader::UploadError) {
         *self.error_count.lock().unwrap() += 1;
     }
 }
@@ -467,7 +467,7 @@ fn test_progress_listener_on_progress_called() {
 fn test_progress_listener_on_complete_called() {
     let listener = TestProgressListener::new();
 
-    let result = video_uploader::UploadResult::new(
+    let result = youtube_uploader::UploadResult::new(
         "youtube",
         "uuid123",
         "https://example.com/video",
@@ -486,7 +486,7 @@ fn test_progress_listener_on_complete_called() {
 fn test_progress_listener_on_error_called() {
     let listener = TestProgressListener::new();
 
-    let error = video_uploader::UploadError::PlatformApi {
+    let error = youtube_uploader::UploadError::PlatformApi {
         status: 500,
         message: "Server error".into(),
     };

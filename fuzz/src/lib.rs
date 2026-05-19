@@ -1,1 +1,1 @@
-pub use video_uploader;
+pub use youtube_uploader;

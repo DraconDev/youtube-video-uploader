@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use zeroize::Zeroize;
 use zeroize::Zeroizing;
 
-const CREDENTIALS_FILE: &str = "video-uploader/credentials.enc";
+const CREDENTIALS_FILE: &str = "youtube-uploader/credentials.enc";
 pub const NONCE_SIZE: usize = 12;
 pub const SALT_SIZE: usize = 16;
 const PBKDF2_ITERATIONS: u32 = 100_000;
@@ -138,7 +138,7 @@ impl Drop for PlatformCredentials {
 /// # Usage
 ///
 /// ```no_run
-/// use video_uploader::CredentialStore;
+/// use youtube_uploader::CredentialStore;
 ///
 /// let store = CredentialStore::load("my-passphrase").unwrap();
 /// let creds = store.get("youtube").expect("youtube workspace not found");
@@ -148,8 +148,8 @@ impl Drop for PlatformCredentials {
 /// # Multi-channel setup
 ///
 /// ```no_run
-/// use video_uploader::config::PlatformCredentials;
-/// use video_uploader::CredentialStore;
+/// use youtube_uploader::config::PlatformCredentials;
+/// use youtube_uploader::CredentialStore;
 ///
 /// let mut store = CredentialStore::default();
 /// store.set("gaming", PlatformCredentials::default());
@@ -164,7 +164,7 @@ impl Drop for PlatformCredentials {
 /// # Usage
 ///
 /// ```no_run
-/// use video_uploader::CredentialStore;
+/// use youtube_uploader::CredentialStore;
 ///
 /// let store = CredentialStore::load("my-passphrase").unwrap();
 /// let creds = store.get("youtube").expect("youtube workspace not found");
@@ -174,8 +174,8 @@ impl Drop for PlatformCredentials {
 /// # Multi-channel setup
 ///
 /// ```no_run
-/// use video_uploader::config::PlatformCredentials;
-/// use video_uploader::CredentialStore;
+/// use youtube_uploader::config::PlatformCredentials;
+/// use youtube_uploader::CredentialStore;
 ///
 /// let mut store = CredentialStore::default();
 /// store.set("gaming", PlatformCredentials::default());

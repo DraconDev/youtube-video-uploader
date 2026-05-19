@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use video_uploader::{
+use youtube_uploader::{
     CredentialStore, ProgressListener, UploadError, UploadResult, VideoUpload, YouTubeUploader,
 };
 
@@ -33,8 +33,8 @@ impl ProgressListener for ProgressBar {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let passphrase = std::env::var("VIDEO_UPLOADER_PASSPHRASE")
-        .expect("Set VIDEO_UPLOADER_PASSPHRASE environment variable");
+    let passphrase = std::env::var("YOUTUBE_UPLOADER_PASSPHRASE")
+        .expect("Set YOUTUBE_UPLOADER_PASSPHRASE environment variable");
 
     let store = Arc::new(Mutex::new(CredentialStore::load(&passphrase)?));
     let uploader = YouTubeUploader::new(store, &passphrase, "youtube");

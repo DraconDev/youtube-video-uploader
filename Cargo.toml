@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "video-uploader",
-    "video-uploader-cli",
+    "youtube-uploader",
+    "youtube-uploader-cli",
 ]
 exclude = ["fuzz"]
 
@@ -10,8 +10,8 @@ exclude = ["fuzz"]
 version = "0.4.14"
 edition = "2024"
 rust-version = "1.82"
-license = "AGPL-3.0-only"
-repository = "https://github.com/dracon/video-uploader"
+license = "MIT"
+repository = "https://github.com/dracon/youtube-uploader"
 
 [workspace.dependencies]
 tokio = { version = "1.44", features = ["full"] }

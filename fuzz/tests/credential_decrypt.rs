@@ -1,5 +1,5 @@
 use proptest::prelude::*;
-use video_uploader::config::CredentialStore;
+use youtube_uploader::config::CredentialStore;
 
 proptest! {
     #[test]

@@ -9,7 +9,7 @@ use crate::{UploadError, UploadResult};
 /// # Examples
 ///
 /// ```
-/// use video_uploader::{ProgressListener, UploadError, UploadResult};
+/// use youtube_uploader::{ProgressListener, UploadError, UploadResult};
 ///
 /// struct MyProgress;
 ///
@@ -41,8 +41,8 @@ pub trait ProgressListener: Send + Sync {
 /// Useful for background/batch uploads where no output is desired.
 ///
 /// ```
-/// use video_uploader::NoopProgressListener;
-/// use video_uploader::ProgressListener;
+/// use youtube_uploader::NoopProgressListener;
+/// use youtube_uploader::ProgressListener;
 ///
 /// let listener = NoopProgressListener;
 /// listener.on_progress(50, 100); // does nothing

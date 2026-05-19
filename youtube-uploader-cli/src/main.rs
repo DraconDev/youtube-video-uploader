@@ -3,14 +3,14 @@ use clap::{Parser, Subcommand};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::Semaphore;
-use video_uploader::{
+use youtube_uploader::{
     CredentialStore, StderrProgressListener, VideoUpload, YouTubeUploader, Zeroizing,
     auth::{device_code, now_secs},
     config::PlatformCredentials,
 };
 
 #[derive(Parser)]
-#[command(name = "video-uploader")]
+#[command(name = "youtube-uploader")]
 #[command(about = "Upload videos to YouTube via the Data API v3", version)]
 struct Cli {
     #[arg(short, long)]
@@ -32,7 +32,7 @@ struct Cli {
     #[arg(
         short = 'P',
         long,
-        help = "Upload profile name (from ~/.config/video-uploader/profiles/<name>.toml)"
+        help = "Upload profile name (from ~/.config/youtube-uploader/profiles/<name>.toml)"
     )]
     profile: Option<String>,
 
@@ -182,12 +182,12 @@ enum VisibilityArg {
     Public,
 }
 
-impl From<VisibilityArg> for video_uploader::Visibility {
+impl From<VisibilityArg> for youtube_uploader::Visibility {
     fn from(v: VisibilityArg) -> Self {
         match v {
-            VisibilityArg::Public => video_uploader::Visibility::Public,
-            VisibilityArg::Unlisted => video_uploader::Visibility::Unlisted,
-            VisibilityArg::Private => video_uploader::Visibility::Private,
+            VisibilityArg::Public => youtube_uploader::Visibility::Public,
+            VisibilityArg::Unlisted => youtube_uploader::Visibility::Unlisted,
+            VisibilityArg::Private => youtube_uploader::Visibility::Private,
         }
     }
 }
@@ -313,15 +313,15 @@ fn parse_csv_manifest(path: &str) -> anyhow::Result<Vec<BatchEntry>> {
 }
 
 fn get_env_passphrase() -> Result<String, anyhow::Error> {
-    if let Ok(env_pass) = std::env::var("VIDEO_UPLOADER_PASSPHRASE") {
+    if let Ok(env_pass) = std::env::var("YOUTUBE_UPLOADER_PASSPHRASE") {
         if !env_pass.is_empty() {
             Ok(env_pass)
         } else {
-            Err(anyhow::anyhow!("VIDEO_UPLOADER_PASSPHRASE is empty"))
+            Err(anyhow::anyhow!("YOUTUBE_UPLOADER_PASSPHRASE is empty"))
         }
     } else {
         Err(anyhow::anyhow!(
-            "--passphrase is required (or set VIDEO_UPLOADER_PASSPHRASE, or use --passphrase-file)"
+            "--passphrase is required (or set YOUTUBE_UPLOADER_PASSPHRASE, or use --passphrase-file)"
         ))
     }
 }
@@ -374,7 +374,7 @@ fn resolve_workspace(
     if let Some(name) = explicit {
         if store.get(name).is_none() {
             return Err(anyhow::anyhow!(
-                "Workspace '{}' not found. Run 'video-uploader workspace list' to see available workspaces.",
+                "Workspace '{}' not found. Run 'youtube-uploader workspace list' to see available workspaces.",
                 name
             ));
         }
@@ -393,7 +393,7 @@ fn resolve_workspace(
     }
 
     Err(anyhow::anyhow!(
-        "No workspace specified and no default workspace configured. Use --workspace or set a default with 'video-uploader workspace default <name>'."
+        "No workspace specified and no default workspace configured. Use --workspace or set a default with 'youtube-uploader workspace default <name>'."
     ))
 }
 
@@ -471,7 +471,7 @@ async fn main() -> anyhow::Result<()> {
                         tracing::info!(
                             "Device code flow not supported for this client type, switching to browser auth..."
                         );
-                        video_uploader::auth::auth_code::auth_code_flow(&client_id, &client_secret)
+                        youtube_uploader::auth::auth_code::auth_code_flow(&client_id, &client_secret)
                             .await?
                     } else {
                         return Err(anyhow::anyhow!("Auth failed: {e}"));
@@ -544,17 +544,17 @@ async fn main() -> anyhow::Result<()> {
             let meta_path = meta
                 .as_deref()
                 .map(std::path::PathBuf::from)
-                .or_else(|| video_uploader::VideoMeta::discover(std::path::Path::new(&file)));
+                .or_else(|| youtube_uploader::VideoMeta::discover(std::path::Path::new(&file)));
             let video_meta = if let Some(ref path) = meta_path {
                 output::info(&format!("Loading metadata from {}", path.display()));
-                video_uploader::VideoMeta::load_from(path)?
+                youtube_uploader::VideoMeta::load_from(path)?
             } else {
-                video_uploader::VideoMeta::default()
+                youtube_uploader::VideoMeta::default()
             };
 
             // 2. Determine profile: meta can specify a profile, CLI --profile overrides
             let profile_name = cli.profile.as_deref().or(video_meta.profile.as_deref());
-            let profile = video_uploader::UploadProfile::resolve(profile_name)?;
+            let profile = youtube_uploader::UploadProfile::resolve(profile_name)?;
 
             // 3. Build video: built-in defaults → profile → meta TOML → CLI flags
             //    (each layer overrides the previous)
@@ -661,7 +661,7 @@ async fn main() -> anyhow::Result<()> {
                 let video = VideoUpload::new(expand_tilde(&entry.file), &entry.title)
                     .with_tags(entry.tags.clone())
                     .with_visibility(entry.visibility.clone().into());
-                if let Err(e) = video_uploader::validation::validate(&video).await {
+                if let Err(e) = youtube_uploader::validation::validate(&video).await {
                     validation_errors.push(format!("Row {}: {}", i + 1, e));
                 }
             }
@@ -704,7 +704,7 @@ async fn main() -> anyhow::Result<()> {
                         // Per-row profile: CSV profile column > --profile flag
                         let row_profile =
                             entry.profile.as_deref().or(row_global_profile.as_deref());
-                        let profile = match video_uploader::UploadProfile::resolve(row_profile) {
+                        let profile = match youtube_uploader::UploadProfile::resolve(row_profile) {
                             Ok(p) => p,
                             Err(e) => {
                                 output::print_error(&format!("Profile error: {e}"));
@@ -713,18 +713,18 @@ async fn main() -> anyhow::Result<()> {
                         };
 
                         // Auto-discover meta TOML for this video
-                        let meta_path = video_uploader::VideoMeta::discover(std::path::Path::new(
+                        let meta_path = youtube_uploader::VideoMeta::discover(std::path::Path::new(
                             &expand_tilde(&entry.file),
                         ));
                         let video_meta = match meta_path {
-                            Some(ref path) => match video_uploader::VideoMeta::load_from(path) {
+                            Some(ref path) => match youtube_uploader::VideoMeta::load_from(path) {
                                 Ok(m) => m,
                                 Err(e) => {
                                     output::print_error(&format!("Meta error: {e}"));
                                     return Err(format!("Meta error: {e}"));
                                 }
                             },
-                            None => video_uploader::VideoMeta::default(),
+                            None => youtube_uploader::VideoMeta::default(),
                         };
 
                         // Resolution: profile → meta → CSV fields
@@ -842,7 +842,7 @@ async fn main() -> anyhow::Result<()> {
                 WorkspaceAction::Default { name } => {
                     if store.get(&name).is_none() {
                         return Err(anyhow::anyhow!(
-                            "Workspace '{}' does not exist. Run 'video-uploader list' to see available workspaces.",
+                            "Workspace '{}' does not exist. Run 'youtube-uploader list' to see available workspaces.",
                             name
                         ));
                     }
@@ -877,16 +877,16 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Profile { action } => match action {
             ProfileAction::List => {
-                let profiles_map = video_uploader::UploadProfile::list()?;
+                let profiles_map = youtube_uploader::UploadProfile::list()?;
                 let profiles: Vec<_> = profiles_map.into_iter().collect();
                 output::profile_list(&profiles);
             }
             ProfileAction::Show { name } => {
-                let profile = video_uploader::UploadProfile::load(&name)?;
+                let profile = youtube_uploader::UploadProfile::load(&name)?;
                 output::profile_show(&name, &profile);
             }
             ProfileAction::Remove { name } => {
-                video_uploader::UploadProfile::remove(&name)?;
+                youtube_uploader::UploadProfile::remove(&name)?;
                 output::profile_removed(&name);
             }
         },

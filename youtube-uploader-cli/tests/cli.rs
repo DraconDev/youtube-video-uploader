@@ -5,8 +5,8 @@
 use std::fs;
 use std::process::Command;
 
-fn video_uploader() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_video-uploader"))
+fn youtube_uploader() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_youtube-uploader"))
 }
 
 fn with_passphrase(mut cmd: Command) -> Command {
@@ -32,7 +32,7 @@ fn make_pass_file(dir: &std::path::Path, pass: &str) -> std::path::PathBuf {
 fn cli_auth_rejects_unexpected_arg() {
     let home = temp_home();
     let pass = make_pass_file(home.path(), "longpassphrase999");
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args([
         "--passphrase-file",
@@ -56,7 +56,7 @@ fn cli_auth_rejects_unexpected_arg() {
 #[test]
 fn cli_upload_missing_file_no_passphrase() {
     let home = temp_home();
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.env("HOME", home.path());
     cmd.args(["upload", "--file", "/nonexistent.mp4", "--title", "Test"]);
     let output = cmd.output().unwrap();
@@ -75,7 +75,7 @@ fn cli_upload_missing_file_no_passphrase() {
 #[test]
 fn cli_upload_missing_file_with_passphrase() {
     let home = temp_home();
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args(["upload", "--file", "/nonexistent.mp4", "--title", "Test"]);
     let output = cmd.output().unwrap();
@@ -96,7 +96,7 @@ fn cli_upload_missing_file_with_passphrase() {
 #[test]
 fn cli_upload_rejects_unknown_flag() {
     let home = temp_home();
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args([
         "upload",
@@ -119,7 +119,7 @@ fn cli_upload_rejects_unknown_flag() {
 #[test]
 fn cli_list_no_credentials() {
     let home = temp_home();
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args(["list"]);
     let output = cmd.output().unwrap();
@@ -140,7 +140,7 @@ fn cli_list_no_credentials() {
 fn cli_list_with_passphrase_file() {
     let home = temp_home();
     let pass = make_pass_file(home.path(), "longpassphrase999");
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.env("HOME", home.path());
     cmd.args(["--passphrase-file", pass.to_str().unwrap(), "list"]);
     let output = cmd.output().unwrap();
@@ -160,7 +160,7 @@ fn cli_list_with_passphrase_file() {
 #[test]
 fn cli_batch_missing_manifest() {
     let home = temp_home();
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args(["batch", "--manifest", "/nonexistent.csv"]);
     let output = cmd.output().unwrap();
@@ -179,7 +179,7 @@ fn cli_batch_malformed_csv() {
     let bad_csv = home.path().join("bad.csv");
     write_file(&bad_csv, "file,title\n/notvalid");
 
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args(["batch", "--manifest", bad_csv.to_str().unwrap()]);
     let output = cmd.output().unwrap();
@@ -215,7 +215,7 @@ fn cli_batch_dry_run_valid_manifest() {
         ),
     );
 
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args([
         "batch",
@@ -248,7 +248,7 @@ fn cli_batch_dry_run_valid_manifest() {
 
 #[test]
 fn cli_help_flag_auth() {
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.args(["auth", "--help"]);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
@@ -256,7 +256,7 @@ fn cli_help_flag_auth() {
 
 #[test]
 fn cli_help_flag_upload() {
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.args(["upload", "--help"]);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
@@ -264,7 +264,7 @@ fn cli_help_flag_upload() {
 
 #[test]
 fn cli_help_flag_batch() {
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.args(["batch", "--help"]);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
@@ -272,7 +272,7 @@ fn cli_help_flag_batch() {
 
 #[test]
 fn cli_help_flag_list() {
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.args(["list", "--help"]);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
@@ -281,7 +281,7 @@ fn cli_help_flag_list() {
 #[test]
 fn cli_passphrase_too_short() {
     let home = temp_home();
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.env("HOME", home.path());
     cmd.arg("--passphrase").arg("short");
     cmd.args(["list"]);
@@ -301,7 +301,7 @@ fn cli_passphrase_file_empty_rejected() {
     let empty_pass = home.path().join("empty.txt");
     fs::write(&empty_pass, "").unwrap();
 
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.env("HOME", home.path());
     cmd.arg("--passphrase-file")
         .arg(empty_pass.to_str().unwrap());
@@ -322,7 +322,7 @@ fn cli_passphrase_file_empty_rejected() {
 
 #[test]
 fn cli_workspace_help() {
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.args(["workspace", "--help"]);
     let output = cmd.output().unwrap();
     assert!(output.status.success());
@@ -337,7 +337,7 @@ fn cli_workspace_help() {
 #[test]
 fn cli_workspace_default_nonexistent() {
     let home = temp_home();
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args(["workspace", "default", "nonexistent"]);
     let output = cmd.output().unwrap();
@@ -353,7 +353,7 @@ fn cli_workspace_default_nonexistent() {
 #[test]
 fn cli_workspace_remove_nonexistent() {
     let home = temp_home();
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args(["workspace", "remove", "nonexistent"]);
     let output = cmd.output().unwrap();
@@ -400,7 +400,7 @@ fn cli_batch_dry_run_multi_row_with_workspaces() {
         ),
     );
 
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args([
         "batch",
@@ -444,7 +444,7 @@ fn cli_batch_dry_run_multi_row_with_workspaces() {
 #[test]
 fn cli_workspace_rename_nonexistent() {
     let home = temp_home();
-    let mut cmd = with_passphrase(video_uploader());
+    let mut cmd = with_passphrase(youtube_uploader());
     cmd.env("HOME", home.path());
     cmd.args(["workspace", "rename", "old", "new"]);
     let output = cmd.output().unwrap();
@@ -459,7 +459,7 @@ fn cli_workspace_rename_nonexistent() {
 
 #[test]
 fn cli_channel_help() {
-    let mut cmd = video_uploader();
+    let mut cmd = youtube_uploader();
     cmd.args(["channel", "--help"]);
     let output = cmd.output().unwrap();
     assert!(output.status.success());

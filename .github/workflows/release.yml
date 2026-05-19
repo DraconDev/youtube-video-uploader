@@ -44,16 +44,16 @@ jobs:
       - name: Build release
         run: |
           if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            cross build --release --target ${{ matrix.target }} -p video-uploader-cli
+            cross build --release --target ${{ matrix.target }} -p youtube-uploader-cli
           else
-            cargo build --release --target ${{ matrix.target }} -p video-uploader-cli
+            cargo build --release --target ${{ matrix.target }} -p youtube-uploader-cli
           fi
 
       - name: Smoke test
         if: matrix.target != 'aarch64-unknown-linux-gnu'
         shell: bash
         run: |
-          binary="target/${{ matrix.target }}/release/video-uploader"
+          binary="target/${{ matrix.target }}/release/youtube-uploader"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             binary="${binary}.exe"
           fi
@@ -64,15 +64,15 @@ jobs:
         run: |
           mkdir -p dist
           if [ "${{ matrix.archive }}" = "tar.gz" ]; then
-            tar czf "dist/video-uploader-${{ matrix.target }}.tar.gz" \
-              -C "target/${{ matrix.target }}/release" video-uploader
+            tar czf "dist/youtube-uploader-${{ matrix.target }}.tar.gz" \
+              -C "target/${{ matrix.target }}/release" youtube-uploader
           elif [ "${{ matrix.archive }}" = "zip" ]; then
-            binary="target/${{ matrix.target }}/release/video-uploader.exe"
+            binary="target/${{ matrix.target }}/release/youtube-uploader.exe"
             if [ ! -f "$binary" ]; then
               echo "ERROR: Expected binary not found at $binary"
               exit 1
             fi
-            7z a -tzip "dist/video-uploader-${{ matrix.target }}.zip" \
+            7z a -tzip "dist/youtube-uploader-${{ matrix.target }}.zip" \
               "$binary" \
               -mx9
           fi
@@ -80,7 +80,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: video-uploader-${{ matrix.target }}
+          name: youtube-uploader-${{ matrix.target }}
           path: dist/
 
   create-release:

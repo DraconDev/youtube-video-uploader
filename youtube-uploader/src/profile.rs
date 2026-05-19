@@ -1,6 +1,6 @@
 //! Upload profiles — reusable presets stored as TOML files.
 //!
-//! Profiles live in `~/.config/video-uploader/profiles/<name>.toml`.
+//! Profiles live in `~/.config/youtube-uploader/profiles/<name>.toml`.
 //! All fields are optional; only non-empty values override built-in defaults.
 
 use crate::UploadError;
@@ -122,7 +122,7 @@ impl UploadProfile {
     pub fn profiles_dir() -> Result<PathBuf, UploadError> {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| UploadError::Config("Cannot determine config directory".into()))?;
-        Ok(config_dir.join("video-uploader").join("profiles"))
+        Ok(config_dir.join("youtube-uploader").join("profiles"))
     }
 
     /// Load a profile by name. Returns an empty profile if the file doesn't exist.
@@ -356,7 +356,7 @@ publish_at = "2026-05-20T09:00:00Z"
     fn test_profiles_dir_is_under_config() {
         let dir = UploadProfile::profiles_dir().unwrap();
         let s = dir.to_string_lossy();
-        assert!(s.contains("video-uploader"));
+        assert!(s.contains("youtube-uploader"));
         assert!(s.contains("profiles"));
     }
 

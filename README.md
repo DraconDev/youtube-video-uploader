@@ -1,4 +1,4 @@
-# video-uploader
+# youtube-uploader
 
 A Rust library and **CLI tool** for uploading videos to YouTube via the Data API v3. You run it, it uploads, it exits. **No daemon, no background process, no service.**
 
@@ -8,22 +8,22 @@ A Rust library and **CLI tool** for uploading videos to YouTube via the Data API
 
 ```bash
 # Authenticate (one-time per channel)
-video-uploader auth
+youtube-uploader auth
 
 # Upload a video (private by default)
-video-uploader upload --file video.mp4 --title "My Video"
+youtube-uploader upload --file video.mp4 --title "My Video"
 
 # JSON output for scripts
-video-uploader --output json upload --file video.mp4 --title "My Video"
+youtube-uploader --output json upload --file video.mp4 --title "My Video"
 
 # Multi-channel
-video-uploader -w gaming upload --file gameplay.mp4 --title "Let's Play"
+youtube-uploader -w gaming upload --file gameplay.mp4 --title "Let's Play"
 
 # Upload profile
-video-uploader -P gaming upload --file gameplay.mp4 --title "Stream"
+youtube-uploader -P gaming upload --file gameplay.mp4 --title "Stream"
 
 # Batch
-video-uploader batch manifest.csv --concurrency 2
+youtube-uploader batch manifest.csv --concurrency 2
 ```
 
 ## Library Usage
@@ -31,7 +31,7 @@ video-uploader batch manifest.csv --concurrency 2
 ```rust
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use video_uploader::{
+use youtube_uploader::{
     CredentialStore, YouTubeUploader, VideoUpload, Visibility, StderrProgressListener,
 };
 
@@ -61,12 +61,12 @@ println!("Uploaded: {} (workspace: {})", result.url, result.workspace);
 ## Installation
 
 ```bash
-cargo install video-uploader-cli
+cargo install youtube-uploader-cli
 ```
 
 ```toml
 [dependencies]
-video-uploader = "0.4"
+youtube-uploader = "0.4"
 tokio = { version = "1", features = ["full"] }
 ```
 

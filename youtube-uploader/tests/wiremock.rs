@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use video_uploader::{
+use youtube_uploader::{
     UploadError, YouTubeUploader,
     config::{CredentialStore, PlatformCredentials},
     upload::VideoUpload,
@@ -379,8 +379,8 @@ async fn test_refresh_access_token_success() {
         .mount(&mock_server)
         .await;
 
-    let result = video_uploader::auth::refresh_token::refresh_access_token_url(
-        &video_uploader::net::build_http_client(),
+    let result = youtube_uploader::auth::refresh_token::refresh_access_token_url(
+        &youtube_uploader::net::build_http_client(),
         &format!("{}/token", mock_server.uri()),
         "test_refresh_token",
         "test_client",
@@ -408,8 +408,8 @@ async fn test_refresh_access_token_failure_returns_token_refresh_error() {
         .mount(&mock_server)
         .await;
 
-    let result = video_uploader::auth::refresh_token::refresh_access_token_url(
-        &video_uploader::net::build_http_client(),
+    let result = youtube_uploader::auth::refresh_token::refresh_access_token_url(
+        &youtube_uploader::net::build_http_client(),
         &format!("{}/token", mock_server.uri()),
         "expired_refresh_token",
         "test_client",
@@ -447,7 +447,7 @@ async fn test_poll_for_token_expired_token() {
         .mount(&mock_server)
         .await;
 
-    let result = video_uploader::auth::device_code::poll_for_token_url(
+    let result = youtube_uploader::auth::device_code::poll_for_token_url(
         &format!("{}/token", mock_server.uri()),
         "device_abc",
         "test_client",
@@ -480,7 +480,7 @@ async fn test_poll_for_token_expired_token_error_path() {
         .mount(&mock_server)
         .await;
 
-    let result = video_uploader::auth::device_code::poll_for_token_url(
+    let result = youtube_uploader::auth::device_code::poll_for_token_url(
         &format!("{}/token", mock_server.uri()),
         "device_abc",
         "test_client",
@@ -524,7 +524,7 @@ async fn test_poll_for_token_slow_down_increases_interval() {
         .mount(&mock_server)
         .await;
 
-    let result = video_uploader::auth::device_code::poll_for_token_url(
+    let result = youtube_uploader::auth::device_code::poll_for_token_url(
         &format!("{}/token", mock_server.uri()),
         "device_abc",
         "test_client",
@@ -568,7 +568,7 @@ async fn test_poll_for_token_authorization_pending_retries() {
         .mount(&mock_server)
         .await;
 
-    let result = video_uploader::auth::device_code::poll_for_token_url(
+    let result = youtube_uploader::auth::device_code::poll_for_token_url(
         &format!("{}/token", mock_server.uri()),
         "device_abc",
         "test_client",
@@ -598,7 +598,7 @@ async fn test_poll_for_token_unknown_error_fails() {
         .mount(&mock_server)
         .await;
 
-    let result = video_uploader::auth::device_code::poll_for_token_url(
+    let result = youtube_uploader::auth::device_code::poll_for_token_url(
         &format!("{}/token", mock_server.uri()),
         "device_abc",
         "test_client",
@@ -724,7 +724,7 @@ async fn test_poll_for_token_timeout_is_cooperative() {
 
     let result = tokio::time::timeout(
         std::time::Duration::from_millis(100),
-        video_uploader::auth::device_code::poll_for_token_url(
+        youtube_uploader::auth::device_code::poll_for_token_url(
             &token_url,
             "device_abc",
             "test_client",
@@ -816,7 +816,7 @@ async fn test_start_device_code_success() {
         .mount(&mock_server)
         .await;
 
-    let result = video_uploader::auth::device_code::start_device_code_url(
+    let result = youtube_uploader::auth::device_code::start_device_code_url(
         &format!("{}/device/code", mock_server.uri()),
         "test_client_id",
     )
@@ -885,8 +885,8 @@ async fn test_e2e_upload_flow_refresh_initiate_chunk_result() {
     let video = VideoUpload::new(fixture_video().to_str().unwrap(), "E2E Test Video");
 
     // Step 1: Refresh token
-    let token = video_uploader::auth::refresh_token::refresh_access_token_url(
-        &video_uploader::net::build_http_client(),
+    let token = youtube_uploader::auth::refresh_token::refresh_access_token_url(
+        &youtube_uploader::net::build_http_client(),
         &format!("{}/token", base),
         "e2e_refresh_token",
         "test_client",
@@ -934,7 +934,7 @@ async fn test_fetch_channel_info_parses_response() {
         .mount(&mock_server)
         .await;
 
-    let client = video_uploader::net::build_http_client();
+    let client = youtube_uploader::net::build_http_client();
     let response = client
         .get(&format!(
             "{}/youtube/v3/channels?mine=true&part=snippet",
@@ -967,7 +967,7 @@ async fn test_fetch_channel_info_empty_items() {
         .mount(&mock_server)
         .await;
 
-    let client = video_uploader::net::build_http_client();
+    let client = youtube_uploader::net::build_http_client();
     let response = client
         .get(&format!(
             "{}/youtube/v3/channels?mine=true&part=snippet",

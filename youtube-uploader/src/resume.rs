@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 /// # Examples
 ///
 /// ```no_run
-/// use video_uploader::{YouTubeUploader, VideoUpload, CredentialStore};
+/// use youtube_uploader::{YouTubeUploader, VideoUpload, CredentialStore};
 /// use std::sync::Arc;
 /// use tokio::sync::Mutex;
 ///
@@ -56,7 +56,7 @@ impl UploadState {
     pub fn resume_dir() -> Result<PathBuf, UploadError> {
         let config_dir = dirs::config_dir()
             .ok_or_else(|| UploadError::Config("Cannot determine config directory".into()))?;
-        Ok(config_dir.join("video-uploader").join("resume"))
+        Ok(config_dir.join("youtube-uploader").join("resume"))
     }
 
     /// Generate a unique filename for this upload state based on file path + title.
@@ -70,7 +70,7 @@ impl UploadState {
 
     /// Save the resume state to disk.
     ///
-    /// State is written to `~/.config/video-uploader/resume/{hash}.json`.
+    /// State is written to `~/.config/youtube-uploader/resume/{hash}.json`.
     pub fn save(&self) -> Result<PathBuf, UploadError> {
         let dir = Self::resume_dir()?;
         std::fs::create_dir_all(&dir)
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn test_resume_dir_is_under_config() {
         let dir = UploadState::resume_dir().unwrap();
-        assert!(dir.to_string_lossy().contains("video-uploader"));
+        assert!(dir.to_string_lossy().contains("youtube-uploader"));
         assert!(dir.to_string_lossy().contains("resume"));
     }
 

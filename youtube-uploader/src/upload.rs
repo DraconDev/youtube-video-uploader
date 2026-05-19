@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 /// # Examples
 ///
 /// ```
-/// use video_uploader::Visibility;
+/// use youtube_uploader::Visibility;
 ///
 /// assert_eq!(Visibility::default(), Visibility::Private);
 /// assert_eq!(Visibility::Unlisted.to_string(), "unlisted");
@@ -80,7 +80,7 @@ impl std::str::FromStr for License {
 /// Use the builder pattern to construct:
 ///
 /// ```
-/// use video_uploader::{VideoUpload, Visibility};
+/// use youtube_uploader::{VideoUpload, Visibility};
 ///
 /// let video = VideoUpload::new("/path/to/video.mp4", "My Video")
 ///     .with_description("A great video")
@@ -299,7 +299,7 @@ impl VideoUpload {
 /// # Examples
 ///
 /// ```
-/// use video_uploader::UploadResult;
+/// use youtube_uploader::UploadResult;
 ///
 /// let result = UploadResult::new(
 ///     "youtube",
@@ -498,7 +498,7 @@ mod tests {
             .with_contains_synthetic_media(true)
             .with_embeddable(true)
             .with_public_stats_viewable(false)
-            .with_description_suffix("\n\nUploaded with video-uploader")
+            .with_description_suffix("\n\nUploaded with youtube-uploader")
             .with_publish_at("2026-06-01T12:00:00Z")
             .with_recording_date("2026-05-18");
 

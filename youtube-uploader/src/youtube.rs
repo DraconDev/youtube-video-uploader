@@ -61,7 +61,7 @@ pub(crate) fn validate_upload_url(url: &str) -> Result<String, UploadError> {
 /// ```no_run
 /// use std::sync::Arc;
 /// use tokio::sync::Mutex;
-/// use video_uploader::{CredentialStore, YouTubeUploader, VideoUpload};
+/// use youtube_uploader::{CredentialStore, YouTubeUploader, VideoUpload};
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -104,7 +104,7 @@ impl YouTubeUploader {
     /// # Examples
     ///
     /// ```no_run
-    /// use video_uploader::{YouTubeUploader, VideoUpload};
+    /// use youtube_uploader::{YouTubeUploader, VideoUpload};
     ///
     /// # async fn example(uploader: &YouTubeUploader, video: &VideoUpload) {
     /// match uploader.upload(video, None).await {
@@ -141,7 +141,7 @@ impl YouTubeUploader {
     /// # Examples
     ///
     /// ```no_run
-    /// use video_uploader::{YouTubeUploader, UploadState, VideoUpload};
+    /// use youtube_uploader::{YouTubeUploader, UploadState, VideoUpload};
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {

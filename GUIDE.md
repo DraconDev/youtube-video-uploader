@@ -1,4 +1,4 @@
-# video-uploader Guide
+# youtube-uploader Guide
 
 Everything you need to know — setup, usage, automation, and internals — in one place.
 
@@ -12,9 +12,9 @@ Persistent state between runs lives on disk only:
 
 | Path | Purpose |
 |------|---------|
-| `~/.config/video-uploader/credentials.enc` | AES-256-GCM encrypted OAuth2 tokens |
-| `~/.config/video-uploader/profiles/*.toml` | Upload presets |
-| `~/.config/video-uploader/resume/` | In-progress upload state (crash recovery) |
+| `~/.config/youtube-uploader/credentials.enc` | AES-256-GCM encrypted OAuth2 tokens |
+| `~/.config/youtube-uploader/profiles/*.toml` | Upload presets |
+| `~/.config/youtube-uploader/resume/` | In-progress upload state (crash recovery) |
 
 ---
 
@@ -31,10 +31,10 @@ Persistent state between runs lives on disk only:
 
 ```bash
 # Set credentials (one-time)
-video-uploader auth --client-id YOUR_ID --client-secret YOUR_SECRET
+youtube-uploader auth --client-id YOUR_ID --client-secret YOUR_SECRET
 
 # Or use .env file with YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET
-video-uploader auth
+youtube-uploader auth
 ```
 
 Follow the on-screen instructions — open a URL, enter a device code. The CLI waits for authorization and stores the tokens encrypted.
@@ -42,8 +42,8 @@ Follow the on-screen instructions — open a URL, enter a device code. The CLI w
 ### 3. Multiple Channels
 
 ```bash
-video-uploader auth              # → workspace "youtube" (default)
-video-uploader -w cooking auth   # → workspace "cooking"
+youtube-uploader auth              # → workspace "youtube" (default)
+youtube-uploader -w cooking auth   # → workspace "cooking"
 ```
 
 Switch Google accounts in the browser before completing the device code flow for brand accounts.
@@ -56,10 +56,10 @@ Switch Google accounts in the browser before completing the device code flow for
 
 ```bash
 # Basic upload (private by default)
-video-uploader upload --file video.mp4 --title "My Video"
+youtube-uploader upload --file video.mp4 --title "My Video"
 
 # With all options
-video-uploader upload \
+youtube-uploader upload \
   --file video.mp4 \
   --title "My Video" \
   --description "Description here" \
@@ -83,7 +83,7 @@ video-uploader upload \
 ### Batch Upload
 
 ```bash
-video-uploader batch manifest.csv --concurrency 2
+youtube-uploader batch manifest.csv --concurrency 2
 ```
 
 CSV format:
@@ -100,21 +100,21 @@ Required columns: `file`, `title`. All others optional.
 
 ```bash
 # Dry run (show what would upload, don't upload)
-video-uploader batch manifest.csv --dry-run
+youtube-uploader batch manifest.csv --dry-run
 
 # List workspaces
-video-uploader list
+youtube-uploader list
 
 # Channel info
-video-uploader channel
+youtube-uploader channel
 
 # Profile management
-video-uploader profile list
-video-uploader profile show default
-video-uploader profile remove old-profile
+youtube-uploader profile list
+youtube-uploader profile show default
+youtube-uploader profile remove old-profile
 
 # Workspace management
-video-uploader workspace default cooking
+youtube-uploader workspace default cooking
 ```
 
 ### Global Flags
@@ -132,10 +132,10 @@ video-uploader workspace default cooking
 
 ## Upload Profiles
 
-Named TOML presets in `~/.config/video-uploader/profiles/`:
+Named TOML presets in `~/.config/youtube-uploader/profiles/`:
 
 ```toml
-# ~/.config/video-uploader/profiles/gaming.toml
+# ~/.config/youtube-uploader/profiles/gaming.toml
 visibility = "private"
 category = "20"
 made_for_kids = false
@@ -148,9 +148,9 @@ description_suffix = "\n\nStreaming Tue/Thu 7pm"
 All fields optional — only set what you want to default.
 
 ```bash
-video-uploader -P gaming upload --file gameplay.mp4 --title "Stream"
+youtube-uploader -P gaming upload --file gameplay.mp4 --title "Stream"
 # CLI flags override: still private even if profile says public
-video-uploader -P gaming upload --file vid.mp4 --title "Stream" --visibility public
+youtube-uploader -P gaming upload --file vid.mp4 --title "Stream" --visibility public
 ```
 
 ---
@@ -171,10 +171,10 @@ profile = "default"   # optional: loads profile first
 
 ```bash
 # Auto-discovered: video.meta.toml next to video.mp4
-video-uploader upload --file video.mp4
+youtube-uploader upload --file video.mp4
 
 # Explicit path
-video-uploader upload --file video.mp4 --meta /path/to/custom.meta.toml
+youtube-uploader upload --file video.mp4 --meta /path/to/custom.meta.toml
 ```
 
 ### Resolution Order
@@ -201,11 +201,11 @@ made_for_kids = false
 EOF
 
 # 2. Upload, capture JSON result
-video-uploader --output json upload --file video.mp4
+youtube-uploader --output json upload --file video.mp4
 # → {"workspace":"youtube","video_id":"dQw4w9WgXcQ","url":"https://...","title":"Auto Upload"}
 
 # 3. Parse result in script
-VIDEO_ID=$(video-uploader --output json upload --file video.mp4 | jq -r .video_id)
+VIDEO_ID=$(youtube-uploader --output json upload --file video.mp4 | jq -r .video_id)
 echo "Uploaded: $VIDEO_ID"
 ```
 
@@ -214,7 +214,7 @@ echo "Uploaded: $VIDEO_ID"
 ## Architecture
 
 ```
-video-uploader/               # Library crate
+youtube-uploader/               # Library crate
 ├── src/
 │   ├── lib.rs                 # Public exports
 │   ├── youtube.rs             # YouTubeUploader (resumable upload, token refresh, delete)
@@ -232,7 +232,7 @@ video-uploader/               # Library crate
 │       ├── auth_code.rs       # Browser authorization code flow (fallback)
 │       └── refresh_token.rs   # Token refresh
 
-video-uploader-cli/            # Binary crate (run-and-exit)
+youtube-uploader-cli/            # Binary crate (run-and-exit)
 ├── src/
 │   ├── main.rs                # CLI entry point
 │   └── output.rs              # Pretty-print output (all user-facing formatting)
@@ -248,7 +248,7 @@ CLI parse → load credentials → refresh access token
 → complete → print result → EXIT
 ```
 
-If the process crashes mid-upload, resume state is saved in `~/.config/video-uploader/resume/`. Call `resume()` to continue.
+If the process crashes mid-upload, resume state is saved in `~/.config/youtube-uploader/resume/`. Call `resume()` to continue.
 
 ---
 

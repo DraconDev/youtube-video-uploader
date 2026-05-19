@@ -1,5 +1,5 @@
 use proptest::prelude::*;
-use video_uploader::{VideoUpload, validation::validate};
+use youtube_uploader::{VideoUpload, validation::validate};
 
 proptest! {
     #[test]

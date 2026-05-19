@@ -1,4 +1,4 @@
-//! Pretty-print output for the video-uploader CLI.
+//! Pretty-print output for the youtube-uploader CLI.
 //!
 //! All user-facing output goes through this module for consistent formatting.
 //! Uses Unicode icons for visual clarity:
@@ -153,12 +153,12 @@ pub fn divider() {
 ///
 /// ```text
 ///   ╔══════════════════════════════════╗
-///   ║        video-uploader v0.4       ║
+///   ║        youtube-uploader v0.4       ║
 ///   ╚══════════════════════════════════╝
 /// ```
 #[allow(dead_code)]
 pub fn version_banner(version: &str) {
-    let label = format!("video-uploader v{version}");
+    let label = format!("youtube-uploader v{version}");
     let width = label.len().max(30);
     let bar = "═".repeat(width + 2);
     eprintln!();
@@ -258,7 +258,7 @@ pub fn upload_result_full(d: &UploadResultDetails<'_>) {
 }
 
 /// Print the upload result as JSON (for automation/CI).
-pub fn upload_result_json(result: &video_uploader::UploadResult) {
+pub fn upload_result_json(result: &youtube_uploader::UploadResult) {
     match serde_json::to_string_pretty(result) {
         Ok(json) => println!("{json}"),
         Err(e) => eprintln!("Error serializing result: {e}"),
@@ -368,7 +368,7 @@ pub fn batch_csv_missing_columns(columns: &[&str]) {
 /// Print the workspace list with optional channel names.
 pub fn workspace_list(workspaces: &[(&str, bool, Option<&str>)]) {
     if workspaces.is_empty() {
-        info("No workspaces configured. Run: video-uploader auth");
+        info("No workspaces configured. Run: youtube-uploader auth");
     } else {
         sub_header("Workspaces");
         for (name, is_default, channel) in workspaces {
@@ -408,10 +408,10 @@ pub fn channel_info(workspace: &str, channel_name: &str, channel_id: &str) {
 // ─── Profile display ────────────────────────────────────────────────
 
 /// Print the profile list.
-pub fn profile_list(profiles: &[(String, video_uploader::UploadProfile)]) {
+pub fn profile_list(profiles: &[(String, youtube_uploader::UploadProfile)]) {
     if profiles.is_empty() {
         info("No profiles found.");
-        eprintln!("  Create one at: ~/.config/video-uploader/profiles/<name>.toml");
+        eprintln!("  Create one at: ~/.config/youtube-uploader/profiles/<name>.toml");
     } else {
         sub_header("Upload Profiles");
         for (name, _p) in profiles {
@@ -419,12 +419,12 @@ pub fn profile_list(profiles: &[(String, video_uploader::UploadProfile)]) {
         }
         eprintln!();
         info("Use 'profile show <name>' to see details");
-        eprintln!("  Edit profiles at ~/.config/video-uploader/profiles/");
+        eprintln!("  Edit profiles at ~/.config/youtube-uploader/profiles/");
     }
 }
 
 /// Print the full contents of a profile.
-pub fn profile_show(name: &str, p: &video_uploader::UploadProfile) {
+pub fn profile_show(name: &str, p: &youtube_uploader::UploadProfile) {
     sub_header(&format!("Profile: {name}"));
     if let Some(ref v) = p.visibility {
         kv("Visibility", v);

@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p video-uploader --features test-utils
+      - run: cargo test -p youtube-uploader --features test-utils
 
   build:
     runs-on: ubuntu-latest
@@ -32,8 +32,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p video-uploader-cli
-      - run: ./target/release/video-uploader --help
+      - run: cargo build --release -p youtube-uploader-cli
+      - run: ./target/release/youtube-uploader --help
 
   docs:
     runs-on: ubuntu-latest

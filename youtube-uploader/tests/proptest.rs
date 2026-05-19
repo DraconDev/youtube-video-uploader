@@ -74,7 +74,7 @@ proptest! {
     #[test]
     fn proptest_is_private_ip_matches_reference(ip in "\\PC*") {
         // Filter to avoid testing every possible string (too many)
-        let result = video_uploader::is_private_ip(&ip);
+        let result = youtube_uploader::is_private_ip(&ip);
         let expected = is_private_ip_reference(&ip);
         prop_assert_eq!(
             result, expected,
@@ -97,7 +97,7 @@ fn proptest_is_private_ip_public_ips_rejected() {
     ];
     for ip in public_ips {
         assert!(
-            !video_uploader::is_private_ip(ip),
+            !youtube_uploader::is_private_ip(ip),
             "public IP {} should be rejected",
             ip
         );
@@ -128,11 +128,11 @@ fn proptest_is_private_ip_private_ips_accepted() {
     ];
     for (ip, expected) in private_ips {
         assert_eq!(
-            video_uploader::is_private_ip(ip),
+            youtube_uploader::is_private_ip(ip),
             expected,
             "is_private_ip({}) = {}, expected {}",
             ip,
-            video_uploader::is_private_ip(ip),
+            youtube_uploader::is_private_ip(ip),
             expected
         );
     }
@@ -144,8 +144,8 @@ fn proptest_is_private_ip_private_ips_accepted() {
 
 #[test]
 fn proptest_credential_store_roundtrip_random_data() {
-    use video_uploader::UploadError;
-    use video_uploader::config::{CredentialStore, PlatformCredentials};
+    use youtube_uploader::UploadError;
+    use youtube_uploader::config::{CredentialStore, PlatformCredentials};
 
     // Create a store with random data
     let mut store = CredentialStore::default();

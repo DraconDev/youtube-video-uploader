@@ -39,7 +39,7 @@ async fn test_file_read_unreadable_file() {
 
 #[tokio::test]
 async fn test_file_extension_detection() {
-    use video_uploader::upload::VideoUpload;
+    use youtube_uploader::upload::VideoUpload;
 
     let temp_dir = TempDir::new().unwrap();
 
@@ -57,8 +57,8 @@ async fn test_file_extension_detection() {
 
 #[tokio::test]
 async fn test_zero_byte_file_validation() {
-    use video_uploader::upload::VideoUpload;
-    use video_uploader::validation::validate;
+    use youtube_uploader::upload::VideoUpload;
+    use youtube_uploader::validation::validate;
 
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("empty.mp4");
@@ -80,7 +80,7 @@ async fn test_zero_byte_file_validation() {
 
 #[tokio::test]
 async fn test_unicode_filename_path() {
-    use video_uploader::upload::VideoUpload;
+    use youtube_uploader::upload::VideoUpload;
 
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("video.mp4");
@@ -96,7 +96,7 @@ async fn test_unicode_filename_path() {
 
 #[tokio::test]
 async fn test_file_concurrent_read_same_file() {
-    use video_uploader::upload::VideoUpload;
+    use youtube_uploader::upload::VideoUpload;
 
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("shared.mp4");
@@ -119,7 +119,7 @@ async fn test_file_path_with_tilde_expansion() {
     let video_path = home.join("my video.mp4");
     fs::write(&video_path, b"test").unwrap();
 
-    use video_uploader::upload::VideoUpload;
+    use youtube_uploader::upload::VideoUpload;
     let video = VideoUpload::new(&video_path, "Tilde Test");
     assert!(video.file_path().exists());
 }
