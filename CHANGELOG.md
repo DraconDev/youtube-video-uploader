@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-19
+
+### Changed
+- **Renamed from `video-uploader` to `youtube-uploader`** — the name now says exactly what it does
+- **License changed from AGPL-3.0-only to MIT** — more permissive, no CLA required
+- Binary name is now `youtube-uploader` (was `video-uploader`)
+- Library crate is `youtube-uploader` (was `video-uploader`)
+- Config directory is `~/.config/youtube-uploader/` (was `~/.config/video-uploader/`)
+- Env var is `YOUTUBE_UPLOADER_PASSPHRASE` (was `VIDEO_UPLOADER_PASSPHRASE`)
+
+### Added
+- `deny.toml` — cargo-deny config for license/advisory checks
+- Full rustdoc on all public API (`CredentialStore`, `PlatformCredentials`, `UploadError`, `net`, `validation`)
+- Pretty-print upgrades: `╔═╗` box headers, `kv_bool()` with ✔/✘, `kv_wrap()` for long text, `version_banner()`, `batch_csv_missing_columns()`, `validation_errors()`, `quota_info()` with bar chart
+- 33 new tests: License enum, Visibility FromStr, apply_profile, VideoMeta load_from, UploadResult, resume save/load, channel info wiremock, output formatting
+- `GUIDE.md` — consolidated single-source documentation (replaces spec.md, spec-profiles.md, TESTING_PLAN.md, AUDIT.md, todo.md)
+
+### Removed
+- `spec.md`, `spec-profiles.md`, `TESTING_PLAN.md`, `AUDIT.md`, `todo.md` — merged into `GUIDE.md`
+- `COMMERCIAL-LICENSE.md`, `CLA.md` — not needed under MIT
+- `plans/` directory — stale
+- Dead `last_uploaded` field from `StderrProgressListener`
+
 ## [0.3.1] - 2026-05-18
 
 ### Added

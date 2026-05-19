@@ -66,15 +66,10 @@ cargo install youtube-uploader-cli
 
 ```toml
 [dependencies]
-youtube-uploader = "0.4"
+youtube-uploader = "0.5"
 tokio = { version = "1", features = ["full"] }
 ```
 
 ## License
 
-Dual-licensed:
-
-- **AGPL-3.0-only** — See [LICENSE](LICENSE)
-- **Commercial License** — See [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)
-
-By contributing, you agree to [CLA.md](CLA.md).
+MIT — see [LICENSE](LICENSE).
