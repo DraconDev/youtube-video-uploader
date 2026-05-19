@@ -1,6 +1,27 @@
 # video-uploader
 
-A Rust library and CLI for uploading videos to YouTube via the Data API v3. Supports resumable chunked uploads, encrypted credential storage, **multi-channel workspaces**, **upload profiles**, and **AI-friendly per-video metadata**.
+A Rust library and **CLI tool** for uploading videos to YouTube via the Data API v3. You run it, it uploads, it exits. **No daemon, no background process, no service.**
+
+Supports resumable chunked uploads, encrypted credential storage, **multi-channel workspaces**, **upload profiles**, and **AI-friendly per-video metadata**.
+
+## How It Works
+
+```
+$ video-uploader upload --file video.mp4 --title "My Video"
+  → Loads encrypted credentials
+  → Refreshes OAuth2 access token
+  → Initiates resumable upload session
+  → Uploads chunks with progress bar
+  → Prints result and EXITS
+```
+
+Every invocation is a one-shot process. There is no daemon, no socket, no PID file, no watcher. The binary runs, does its job, and exits. Persistent state between runs lives on disk:
+
+| Path | Purpose |
+|------|---------|
+| `~/.config/video-uploader/credentials.enc` | Encrypted OAuth2 tokens |
+| `~/.config/video-uploader/profiles/*.toml` | Upload preset files |
+| `~/.config/video-uploader/resume/` | In-progress upload state (crash recovery) |
 
 ## Features
 
@@ -19,11 +40,11 @@ A Rust library and CLI for uploading videos to YouTube via the Data API v3. Supp
 
 ```toml
 [dependencies]
-video-uploader = "0.3"
+video-uploader = "0.4"
 tokio = { version = "1", features = ["full"] }
 ```
 
-### CLI
+### CLI Binary
 
 ```bash
 cargo install video-uploader-cli
@@ -43,7 +64,7 @@ video-uploader upload --file video.mp4 --title "My Video"
 # Upload with JSON output (for scripts/CI)
 video-uploader --output json upload --file video.mp4 --title "My Video"
 
-# Upload to a specific workspace
+# Upload to a specific workspace (channel)
 video-uploader -w gaming upload --file gameplay.mp4 --title "Let's Play"
 
 # Use an upload profile
@@ -67,7 +88,7 @@ use video_uploader::{
 
 let store = Arc::new(Mutex::new(CredentialStore::load("my-passphrase")?));
 let youtube = YouTubeUploader::new(store, "my-passphrase", "youtube");
-let progress = Arc::new(StderrProgressListener);
+let progress = Arc::new(StderrProgressListener::new());
 
 let video = VideoUpload::new("/path/to/video.mp4", "My Video Title")
     .with_description("Video description")
@@ -216,7 +237,7 @@ video-uploader/               # Library crate
 │       ├── auth_code.rs       # Browser-based authorization code flow
 │       └── refresh_token.rs   # Token refresh logic
 
-video-uploader-cli/            # Binary crate
+video-uploader-cli/            # Binary crate (run-and-exit CLI)
 ├── src/
 │   ├── main.rs                # CLI with auth, upload, batch, list, workspace, profile subcommands
 │   └── output.rs              # Pretty-print output (headers, key-value, icons)
