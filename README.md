@@ -66,7 +66,7 @@ cargo install youtube-uploader-cli
 
 ```toml
 [dependencies]
-youtube-uploader = "0.5"
+youtube-uploader = "0.6"
 tokio = { version = "1", features = ["full"] }
 ```
 

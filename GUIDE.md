@@ -218,24 +218,24 @@ youtube-uploader/               # Library crate
 ├── src/
 │   ├── lib.rs                 # Public exports
 │   ├── youtube.rs             # YouTubeUploader (resumable upload, token refresh, delete)
-│   ├── upload.rs              # VideoUpload, UploadResult, Visibility, License
-│   ├── config.rs              # Encrypted CredentialStore with workspaces
-│   ├── profile.rs             # UploadProfile, VideoMeta
-│   ├── error.rs               # UploadError enum
-│   ├── validation.rs          # File validation (size, extension, title)
-│   ├── progress.rs            # ProgressListener trait + StderrProgressListener
-│   ├── net.rs                 # HTTP client, retry logic, SSRF protection
-│   ├── resume.rs              # UploadState (crash recovery)
+│   ├── upload.rs             # VideoUpload, UploadResult, Visibility, License
+│   ├── config.rs             # Encrypted CredentialStore with workspaces
+│   ├── profile.rs            # UploadProfile, VideoMeta
+│   ├── error.rs              # UploadError enum
+│   ├── validation.rs         # File validation (size, extension, title)
+│   ├── progress.rs           # ProgressListener trait + StderrProgressListener
+│   ├── net.rs                # HTTP client, retry logic, SSRF protection
+│   ├── resume.rs             # UploadState (crash recovery)
 │   └── auth/
-│       ├── mod.rs             # Shared TokenResponse
-│       ├── device_code.rs     # OAuth2 device code flow
-│       ├── auth_code.rs       # Browser authorization code flow (fallback)
-│       └── refresh_token.rs   # Token refresh
+│       ├── mod.rs            # Shared TokenResponse
+│       ├── device_code.rs    # OAuth2 device code flow
+│       ├── auth_code.rs      # Browser authorization code flow (fallback)
+│       └── refresh_token.rs  # Token refresh
 
-youtube-uploader-cli/            # Binary crate (run-and-exit)
+youtube-uploader-cli/          # Binary crate (run-and-exit)
 ├── src/
-│   ├── main.rs                # CLI entry point
-│   └── output.rs              # Pretty-print output (all user-facing formatting)
+│   ├── main.rs               # CLI entry point
+│   └── output.rs             # Pretty-print output (all user-facing formatting)
 └── tests/
     └── cli.rs
 ```
@@ -314,3 +314,11 @@ Quota resets daily at midnight Pacific Time.
 | 0.2 | Multi-channel workspaces, zeroization, resume, builder pattern |
 | 0.3 | Profiles, meta TOML, `--output json`, pretty-print, all metadata fields |
 | 0.4 | Channel info, `channel` subcommand, `cargo deny`, full rustdoc |
+| 0.5 | Renamed `video-uploader` → `youtube-uploader`, MIT license, 213 tests |
+| 0.6 | Pretty-print `╔═╗` headers, `kv_bool`, `kv_wrap`, `quota_info`, consolidated docs |
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
