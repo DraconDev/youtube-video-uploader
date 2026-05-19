@@ -145,6 +145,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Comprehensive test suite with wiremock for HTTP mocking
 - CI pipeline (tests, clippy, fmt, docs, audit)
 
-[unreleased]: https://github.com/dracon/youtube-uploader/compare/v0.1.2...HEAD
-[0.1.2]: https://github.com/dracon/youtube-uploader/compare/v0.1.0...v0.1.2
-[0.1.0]: https://github.com/dracon/youtube-uploader/releases/tag/v0.1.0
+[unreleased]: https://github.com/DraconDev/youtube-video-uploader/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/DraconDev/youtube-video-uploader/compare/v0.1.0...v0.1.2
+[0.1.0]: https://github.com/DraconDev/youtube-video-uploader/releases/tag/v0.1.0
