@@ -4,7 +4,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "YouTube video upload library with resumable upload support"
+homepage.workspace = true
+documentation.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "YouTube video upload library with resumable upload, multi-channel workspaces, upload profiles, and per-video metadata TOML"
 
 [dependencies]
 tokio.workspace = true

@@ -12,6 +12,11 @@ edition = "2024"
 rust-version = "1.82"
 license = "MIT"
 repository = "https://github.com/DraconDev/youtube-video-uploader"
+homepage = "https://github.com/DraconDev/youtube-video-uploader"
+documentation = "https://docs.rs/youtube-uploader"
+readme = "README.md"
+keywords = ["youtube", "upload", "video", "cli", "api"]
+categories = ["command-line-utilities", "api-bindings", "multimedia::video"]
 
 [workspace.dependencies]
 tokio = { version = "1.44", features = ["full"] }

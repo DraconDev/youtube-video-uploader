@@ -4,14 +4,17 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "CLI for youtube-uploader — manage auth and upload videos"
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "CLI for uploading videos to YouTube via the Data API v3 — resumable uploads, multi-channel workspaces, upload profiles, JSON output"
 
 [[bin]]
 name = "youtube-uploader"
 path = "src/main.rs"
 
 [dependencies]
-youtube-uploader = { path = "../youtube-uploader" }
+youtube-uploader = { version = "0.6.0", path = "../youtube-uploader" }
 
 tokio.workspace = true
 clap.workspace = true
