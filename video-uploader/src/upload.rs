@@ -408,4 +408,210 @@ mod tests {
         let result = video.file_size().await;
         assert!(result.is_err()); // /tmp/video.mp4 doesn't exist in test env
     }
+
+    // -- License tests --
+
+    #[test]
+    fn test_license_display() {
+        assert_eq!(License::Youtube.to_string(), "youtube");
+        assert_eq!(License::CreativeCommon.to_string(), "creativeCommon");
+    }
+
+    #[test]
+    fn test_license_default_is_youtube() {
+        assert_eq!(License::default(), License::Youtube);
+    }
+
+    #[test]
+    fn test_license_from_str_youtube() {
+        assert_eq!("youtube".parse::<License>().unwrap(), License::Youtube);
+        assert_eq!("standard".parse::<License>().unwrap(), License::Youtube);
+        assert_eq!("YouTube".parse::<License>().unwrap(), License::Youtube);
+    }
+
+    #[test]
+    fn test_license_from_str_creative_common() {
+        assert_eq!("creative-common".parse::<License>().unwrap(), License::CreativeCommon);
+        assert_eq!("creativecommon".parse::<License>().unwrap(), License::CreativeCommon);
+        assert_eq!("cc".parse::<License>().unwrap(), License::CreativeCommon);
+        assert_eq!("CC".parse::<License>().unwrap(), License::CreativeCommon);
+    }
+
+    #[test]
+    fn test_license_from_str_invalid() {
+        assert!("mit".parse::<License>().is_err());
+        assert!("gpl".parse::<License>().is_err());
+    }
+
+    #[test]
+    fn test_license_serde_roundtrip() {
+        let json = serde_json::to_string(&License::CreativeCommon).unwrap();
+        let parsed: License = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, License::CreativeCommon);
+    }
+
+    // -- Visibility FromStr edge cases --
+
+    #[test]
+    fn test_visibility_from_str_case_insensitive() {
+        assert_eq!("Public".parse::<Visibility>().unwrap(), Visibility::Public);
+        assert_eq!("PRIVATE".parse::<Visibility>().unwrap(), Visibility::Private);
+        assert_eq!("Unlisted".parse::<Visibility>().unwrap(), Visibility::Unlisted);
+    }
+
+    #[test]
+    fn test_visibility_from_str_invalid() {
+        assert!("draft".parse::<Visibility>().is_err());
+        assert!("".parse::<Visibility>().is_err());
+    }
+
+    // -- VideoUpload builder + getters comprehensive --
+
+    #[test]
+    fn test_video_upload_all_builder_fields() {
+        let video = VideoUpload::new("/tmp/video.mp4", "Full Video")
+            .with_description("A detailed description")
+            .with_tags(vec!["rust".into(), "cli".into()])
+            .with_visibility(Visibility::Unlisted)
+            .with_category("20")
+            .with_made_for_kids(false)
+            .with_license(License::CreativeCommon)
+            .with_language("en")
+            .with_contains_synthetic_media(true)
+            .with_embeddable(true)
+            .with_public_stats_viewable(false)
+            .with_description_suffix("\n\nUploaded with video-uploader")
+            .with_publish_at("2026-06-01T12:00:00Z")
+            .with_recording_date("2026-05-18");
+
+        assert_eq!(video.title(), "Full Video");
+        assert_eq!(video.description(), Some("A detailed description"));
+        assert_eq!(video.tags(), &["rust".to_string(), "cli".to_string()]);
+        assert_eq!(video.visibility(), Visibility::Unlisted);
+        assert_eq!(video.category_id(), Some("20"));
+        assert_eq!(video.made_for_kids(), Some(false));
+        assert_eq!(video.file_path(), Path::new("/tmp/video.mp4"));
+    }
+
+    #[test]
+    fn test_video_upload_with_title_override() {
+        let video = VideoUpload::new("/tmp/v.mp4", "Original")
+            .with_title("Override");
+        assert_eq!(video.title(), "Override");
+    }
+
+    // -- apply_profile tests --
+
+    #[test]
+    fn test_apply_profile_fills_unset_fields() {
+        use crate::UploadProfile;
+        let profile: UploadProfile = toml::from_str(r#"
+visibility = "unlisted"
+category = "20"
+made_for_kids = false
+license = "youtube"
+language = "en"
+contains_synthetic_media = false
+embeddable = true
+public_stats_viewable = false
+tags = ["profile-tag"]
+description_suffix = "\nSUFFIX"
+publish_at = "2026-07-01T00:00:00Z"
+recording_date = "2026-05-01"
+"#").unwrap();
+
+        let video = VideoUpload::new("/tmp/v.mp4", "Title")
+            .apply_profile(&profile);
+
+        assert_eq!(video.visibility(), Visibility::Unlisted);
+        assert_eq!(video.category_id(), Some("20"));
+        assert_eq!(video.made_for_kids(), Some(false));
+        // Tags are merged and sorted: ["profile-tag"]
+        assert_eq!(video.tags(), &["profile-tag".to_string()]);
+    }
+
+    #[test]
+    fn test_apply_profile_does_not_overwrite_explicit_fields() {
+        use crate::UploadProfile;
+        let profile: UploadProfile = toml::from_str(r#"
+visibility = "public"
+category = "20"
+made_for_kids = true
+tags = ["profile"]
+"#").unwrap();
+
+        let video = VideoUpload::new("/tmp/v.mp4", "Title")
+            .with_visibility(Visibility::Private)
+            .with_category("28")
+            .with_made_for_kids(false)
+            .with_tags(vec!["my-tag".into()])
+            .apply_profile(&profile);
+
+        // Explicit values win
+        assert_eq!(video.visibility(), Visibility::Private);
+        assert_eq!(video.category_id(), Some("28"));
+        assert_eq!(video.made_for_kids(), Some(false));
+        // Tags are merged: profile ["profile"] + video ["my-tag"] -> sorted deduped
+        assert!(video.tags().contains(&"my-tag".to_string()));
+        assert!(video.tags().contains(&"profile".to_string()));
+    }
+
+    #[test]
+    fn test_apply_profile_tags_merge_dedup() {
+        use crate::UploadProfile;
+        let profile: UploadProfile = toml::from_str(r#"
+tags = ["rust", "programming"]
+"#").unwrap();
+
+        let video = VideoUpload::new("/tmp/v.mp4", "T")
+            .with_tags(vec!["programming".into(), "tutorial".into()])
+            .apply_profile(&profile);
+
+        let tags = video.tags();
+        // "programming" appears once (dedup), "rust" from profile, "tutorial" from video
+        assert!(tags.contains(&"rust".to_string()));
+        assert!(tags.contains(&"programming".to_string()));
+        assert!(tags.contains(&"tutorial".to_string()));
+        // No duplicates
+        let count = tags.iter().filter(|t| t == "programming").count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_apply_profile_default_visibility_is_overridden() {
+        use crate::UploadProfile;
+        // When video.visibility is the default (Private), profile can override
+        let profile: UploadProfile = toml::from_str(r#"visibility = "public""#).unwrap();
+        let video = VideoUpload::new("/tmp/v.mp4", "T").apply_profile(&profile);
+        assert_eq!(video.visibility(), Visibility::Public);
+    }
+
+    #[test]
+    fn test_apply_profile_empty_is_no_op() {
+        use crate::UploadProfile;
+        let profile = UploadProfile::default();
+        let video = VideoUpload::new("/tmp/v.mp4", "T")
+            .with_visibility(Visibility::Unlisted);
+        let video = video.apply_profile(&profile);
+        assert_eq!(video.visibility(), Visibility::Unlisted);
+    }
+
+    // -- UploadResult tests --
+
+    #[test]
+    fn test_upload_result_new() {
+        let r = UploadResult::new("youtube", "abc123", "https://youtube.com/watch?v=abc123", "My Video");
+        assert_eq!(r.workspace, "youtube");
+        assert_eq!(r.video_id, "abc123");
+        assert_eq!(r.url, "https://youtube.com/watch?v=abc123");
+        assert_eq!(r.title, "My Video");
+    }
+
+    #[test]
+    fn test_upload_result_serde_json() {
+        let r = UploadResult::new("gaming", "xyz", "https://youtube.com/watch?v=xyz", "Stream");
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("\"workspace\":\"gaming\""));
+        assert!(json.contains("\"video_id\":\"xyz\""));
+    }
 }

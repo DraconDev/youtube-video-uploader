@@ -489,4 +489,82 @@ language = "es"
         assert_eq!(video.title(), "Keep This");
         assert!(video.description().is_none());
     }
+
+    #[test]
+    fn test_video_meta_load_from_valid_file() {
+        let dir = std::env::temp_dir().join("vu_test_meta_load");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("test.meta.toml");
+        std::fs::write(&path, r#"
+title = "Loaded Title"
+description = "From file"
+tags = ["test"]
+visibility = "public"
+"#).unwrap();
+
+        let meta = VideoMeta::load_from(&path).unwrap();
+        assert_eq!(meta.title.as_deref(), Some("Loaded Title"));
+        assert_eq!(meta.description.as_deref(), Some("From file"));
+        assert_eq!(meta.visibility.as_deref(), Some("public"));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_video_meta_load_from_nonexistent_returns_default() {
+        let meta = VideoMeta::load_from(Path::new("/tmp/does_not_exist_12345.meta.toml")).unwrap();
+        assert!(meta.title.is_none());
+    }
+
+    #[test]
+    fn test_video_meta_load_from_invalid_toml() {
+        let dir = std::env::temp_dir().join("vu_test_meta_bad");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("bad.meta.toml");
+        std::fs::write(&path, "this is not = valid toml {{{").unwrap();
+
+        let result = VideoMeta::load_from(&path);
+        assert!(result.is_err());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_video_meta_apply_to_all_fields() {
+        use crate::{VideoUpload, Visibility};
+
+        let meta: VideoMeta = toml::from_str(r#"
+title = "Meta Title"
+description = "Meta Desc"
+tags = ["a", "b"]
+visibility = "public"
+category = "22"
+made_for_kids = true
+license = "youtube"
+language = "fr"
+contains_synthetic_media = true
+embeddable = false
+public_stats_viewable = true
+description_suffix = "\nSuffix"
+publish_at = "2026-08-01T00:00:00Z"
+recording_date = "2026-05-18"
+"#").unwrap();
+
+        let video = VideoUpload::new("/tmp/v.mp4", "Original").apply_meta(&meta);
+        // Can't call apply_meta directly — it's in profile.rs. Use apply_to instead.
+        let video = meta.apply_to(VideoUpload::new("/tmp/v.mp4", "Original"));
+
+        assert_eq!(video.title(), "Meta Title");
+        assert_eq!(video.description(), Some("Meta Desc"));
+        assert_eq!(video.visibility(), Visibility::Public);
+        assert_eq!(video.category_id(), Some("22"));
+        assert_eq!(video.made_for_kids(), Some(true));
+    }
+
+    #[test]
+    fn test_video_meta_discover_no_stem() {
+        // Path with no filename stem
+        let result = VideoMeta::discover(Path::new("/tmp/"));
+        assert!(result.is_none());
+    }
 }
