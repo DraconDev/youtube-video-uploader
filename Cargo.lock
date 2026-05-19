@@ -2667,7 +2667,7 @@ dependencies = [
 
 [[package]]
 name = "youtube-uploader"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2696,7 +2696,7 @@ dependencies = [
 
 [[package]]
 name = "youtube-uploader-cli"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
