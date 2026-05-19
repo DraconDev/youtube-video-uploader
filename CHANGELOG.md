@@ -4,7 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.6.0] - 2026-05-19
+
+### Added
+- Pretty-print module: `╔═╗` box headers, `kv_bool()` with ✔/✘ icons, `kv_wrap()` for long text wrapping
+- New output functions: `version_banner()`, `batch_csv_missing_columns()`, `validation_errors()`, `quota_info()` with `████░░░░` bar chart, `upload_result_full()`, `batch_summary_detailed()`, `divider()`, `bullet_kv()`
+- `UploadResultDetails` struct for rich upload result display
+- 33 new tests (180 → 213): License FromStr/Display, Visibility edge cases, `apply_profile` (5 tests), VideoMeta `load_from` (3 tests), UploadResult JSON, resume save/load roundtrip, channel info wiremock (2 tests), output formatting (11 tests)
+- `GUIDE.md` — consolidated single-source documentation replacing spec.md, spec-profiles.md, TESTING_PLAN.md, AUDIT.md, todo.md
+
+### Changed
+- `header()` / `auth_banner()` now use `╔═╗` box drawing (was `+--+`)
+- `profile_show()` uses `kv_bool()` with icons (was plain yes/no)
+- 3 raw `eprintln!` calls in `main.rs` replaced with `output::` module calls
+- `--visibility` help text now says "default from profile/built-in: private"
+
+### Removed
+- Dead `last_uploaded: AtomicU64` field from `StderrProgressListener` (never read)
 
 ## [0.5.0] - 2026-05-19
 
@@ -19,15 +35,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - `deny.toml` — cargo-deny config for license/advisory checks
 - Full rustdoc on all public API (`CredentialStore`, `PlatformCredentials`, `UploadError`, `net`, `validation`)
-- Pretty-print upgrades: `╔═╗` box headers, `kv_bool()` with ✔/✘, `kv_wrap()` for long text, `version_banner()`, `batch_csv_missing_columns()`, `validation_errors()`, `quota_info()` with bar chart
-- 33 new tests: License enum, Visibility FromStr, apply_profile, VideoMeta load_from, UploadResult, resume save/load, channel info wiremock, output formatting
-- `GUIDE.md` — consolidated single-source documentation (replaces spec.md, spec-profiles.md, TESTING_PLAN.md, AUDIT.md, todo.md)
 
 ### Removed
-- `spec.md`, `spec-profiles.md`, `TESTING_PLAN.md`, `AUDIT.md`, `todo.md` — merged into `GUIDE.md`
 - `COMMERCIAL-LICENSE.md`, `CLA.md` — not needed under MIT
+- `spec.md`, `spec-profiles.md`, `TESTING_PLAN.md`, `AUDIT.md`, `todo.md` — merged into `GUIDE.md`
 - `plans/` directory — stale
-- Dead `last_uploaded` field from `StderrProgressListener`
 
 ## [0.3.1] - 2026-05-18
 
