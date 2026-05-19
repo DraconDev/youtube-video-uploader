@@ -322,3 +322,5 @@ Quota resets daily at midnight Pacific Time.
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+🏠 **[Repository](https://github.com/DraconDev/youtube-video-uploader)** · 📦 **[Latest Release](https://github.com/DraconDev/youtube-video-uploader/releases/latest)**

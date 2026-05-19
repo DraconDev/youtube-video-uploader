@@ -4,6 +4,8 @@ A Rust library and **CLI tool** for uploading videos to YouTube via the Data API
 
 📖 **[Full Guide → GUIDE.md](GUIDE.md)** — setup, CLI reference, profiles, automation, architecture, security, roadmap.
 
+🏠 **[Repository](https://github.com/DraconDev/youtube-video-uploader)** · 📦 **[Latest Release](https://github.com/DraconDev/youtube-video-uploader/releases/latest)**
+
 ## Quick Start
 
 ```bash
