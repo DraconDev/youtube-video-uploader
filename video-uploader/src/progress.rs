@@ -112,7 +112,6 @@ impl ProgressListener for StderrProgressListener {
                     pct, speed_str, eta_str, uploaded, total
                 );
             }
-
         }
     }
 

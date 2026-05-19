@@ -321,7 +321,12 @@ pub struct UploadResult {
 
 impl UploadResult {
     /// Create a new upload result.
-    pub fn new(workspace: impl Into<String>, video_id: impl Into<String>, url: impl Into<String>, title: impl Into<String>) -> Self {
+    pub fn new(
+        workspace: impl Into<String>,
+        video_id: impl Into<String>,
+        url: impl Into<String>,
+        title: impl Into<String>,
+    ) -> Self {
         Self {
             workspace: workspace.into(),
             video_id: video_id.into(),
@@ -397,7 +402,8 @@ mod tests {
     #[test]
     fn test_video_upload_builder_returns_self() {
         let upload = VideoUpload::new("/tmp/video.mp4", "Title");
-        let upload2 = VideoUpload::new("/tmp/video.mp4", "Title").with_visibility(Visibility::Unlisted);
+        let upload2 =
+            VideoUpload::new("/tmp/video.mp4", "Title").with_visibility(Visibility::Unlisted);
         assert_eq!(upload.visibility(), Visibility::Private);
         assert_eq!(upload2.visibility(), Visibility::Unlisted);
     }
@@ -431,8 +437,14 @@ mod tests {
 
     #[test]
     fn test_license_from_str_creative_common() {
-        assert_eq!("creative-common".parse::<License>().unwrap(), License::CreativeCommon);
-        assert_eq!("creativecommon".parse::<License>().unwrap(), License::CreativeCommon);
+        assert_eq!(
+            "creative-common".parse::<License>().unwrap(),
+            License::CreativeCommon
+        );
+        assert_eq!(
+            "creativecommon".parse::<License>().unwrap(),
+            License::CreativeCommon
+        );
         assert_eq!("cc".parse::<License>().unwrap(), License::CreativeCommon);
         assert_eq!("CC".parse::<License>().unwrap(), License::CreativeCommon);
     }
@@ -455,8 +467,14 @@ mod tests {
     #[test]
     fn test_visibility_from_str_case_insensitive() {
         assert_eq!("Public".parse::<Visibility>().unwrap(), Visibility::Public);
-        assert_eq!("PRIVATE".parse::<Visibility>().unwrap(), Visibility::Private);
-        assert_eq!("Unlisted".parse::<Visibility>().unwrap(), Visibility::Unlisted);
+        assert_eq!(
+            "PRIVATE".parse::<Visibility>().unwrap(),
+            Visibility::Private
+        );
+        assert_eq!(
+            "Unlisted".parse::<Visibility>().unwrap(),
+            Visibility::Unlisted
+        );
     }
 
     #[test]
@@ -495,8 +513,7 @@ mod tests {
 
     #[test]
     fn test_video_upload_with_title_override() {
-        let video = VideoUpload::new("/tmp/v.mp4", "Original")
-            .with_title("Override");
+        let video = VideoUpload::new("/tmp/v.mp4", "Original").with_title("Override");
         assert_eq!(video.title(), "Override");
     }
 
@@ -505,7 +522,8 @@ mod tests {
     #[test]
     fn test_apply_profile_fills_unset_fields() {
         use crate::UploadProfile;
-        let profile: UploadProfile = toml::from_str(r##"
+        let profile: UploadProfile = toml::from_str(
+            r##"
 visibility = "unlisted"
 category = "20"
 made_for_kids = false
@@ -518,10 +536,11 @@ tags = ["profile-tag"]
 description_suffix = "\nSUFFIX"
 publish_at = "2026-07-01T00:00:00Z"
 recording_date = "2026-05-01"
-"##).unwrap();
+"##,
+        )
+        .unwrap();
 
-        let video = VideoUpload::new("/tmp/v.mp4", "Title")
-            .apply_profile(&profile);
+        let video = VideoUpload::new("/tmp/v.mp4", "Title").apply_profile(&profile);
 
         assert_eq!(video.visibility(), Visibility::Unlisted);
         assert_eq!(video.category_id(), Some("20"));
@@ -532,15 +551,18 @@ recording_date = "2026-05-01"
     #[test]
     fn test_apply_profile_does_not_overwrite_explicit_fields() {
         use crate::UploadProfile;
-        let profile: UploadProfile = toml::from_str(r##"
+        let profile: UploadProfile = toml::from_str(
+            r##"
 visibility = "public"
 category = "20"
 made_for_kids = true
 tags = ["profile"]
-"##).unwrap();
+"##,
+        )
+        .unwrap();
 
         let video = VideoUpload::new("/tmp/v.mp4", "Title")
-            .with_visibility(Visibility::Unlisted)  // explicitly set (not default)
+            .with_visibility(Visibility::Unlisted) // explicitly set (not default)
             .with_category("28")
             .with_made_for_kids(false)
             .with_tags(vec!["my-tag".into()])
@@ -557,9 +579,12 @@ tags = ["profile"]
     #[test]
     fn test_apply_profile_tags_merge_dedup() {
         use crate::UploadProfile;
-        let profile: UploadProfile = toml::from_str(r##"
+        let profile: UploadProfile = toml::from_str(
+            r##"
 tags = ["rust", "programming"]
-"##).unwrap();
+"##,
+        )
+        .unwrap();
 
         let video = VideoUpload::new("/tmp/v.mp4", "T")
             .with_tags(vec!["programming".into(), "tutorial".into()])
@@ -585,8 +610,7 @@ tags = ["rust", "programming"]
     fn test_apply_profile_empty_is_no_op() {
         use crate::UploadProfile;
         let profile = UploadProfile::default();
-        let video = VideoUpload::new("/tmp/v.mp4", "T")
-            .with_visibility(Visibility::Unlisted);
+        let video = VideoUpload::new("/tmp/v.mp4", "T").with_visibility(Visibility::Unlisted);
         let video = video.apply_profile(&profile);
         assert_eq!(video.visibility(), Visibility::Unlisted);
     }
@@ -595,7 +619,12 @@ tags = ["rust", "programming"]
 
     #[test]
     fn test_upload_result_new() {
-        let r = UploadResult::new("youtube", "abc123", "https://youtube.com/watch?v=abc123", "My Video");
+        let r = UploadResult::new(
+            "youtube",
+            "abc123",
+            "https://youtube.com/watch?v=abc123",
+            "My Video",
+        );
         assert_eq!(r.workspace, "youtube");
         assert_eq!(r.video_id, "abc123");
         assert_eq!(r.url, "https://youtube.com/watch?v=abc123");

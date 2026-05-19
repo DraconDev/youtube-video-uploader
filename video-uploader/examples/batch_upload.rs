@@ -52,7 +52,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for handle in handles {
         match handle.await.unwrap() {
             Ok(result) => {
-                println!("✓ [{}] {} (ID: {})", result.workspace, result.url, result.video_id);
+                println!(
+                    "✓ [{}] {} (ID: {})",
+                    result.workspace, result.url, result.video_id
+                );
                 successes += 1;
             }
             Err(e) => {

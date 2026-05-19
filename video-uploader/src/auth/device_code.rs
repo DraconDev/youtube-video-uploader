@@ -32,10 +32,7 @@ async fn start_device_code_with_url(
     client_id: &str,
 ) -> Result<DeviceCodeResponse, UploadError> {
     let client = build_http_client();
-    let params = [
-        ("client_id", client_id),
-        ("scope", &youtube_upload_scope()),
-    ];
+    let params = [("client_id", client_id), ("scope", &youtube_upload_scope())];
 
     let response = client.post(device_code_url).form(&params).send().await?;
 
@@ -50,9 +47,7 @@ async fn start_device_code_with_url(
     Ok(resp)
 }
 
-pub async fn start_device_code(
-    client_id: &str,
-) -> Result<DeviceCodeResponse, UploadError> {
+pub async fn start_device_code(client_id: &str) -> Result<DeviceCodeResponse, UploadError> {
     start_device_code_with_url(google_device_code_url().as_str(), client_id).await
 }
 
@@ -136,7 +131,11 @@ pub async fn poll_for_token_with_url(
         let status = response.status();
         let body = response.text().await?;
 
-        tracing::debug!("Token poll response: status={}, body={}", status, &body[..body.len().min(200)]);
+        tracing::debug!(
+            "Token poll response: status={}, body={}",
+            status,
+            &body[..body.len().min(200)]
+        );
 
         if status.is_success() {
             let token: TokenResponse = serde_json::from_str(&body)
@@ -160,7 +159,11 @@ pub async fn poll_for_token_with_url(
             }
             // Google sometimes returns transient errors; retry a few times
             "internal_failure" | "server_error" => {
-                tracing::warn!("Transient token error: {} - {}, retrying...", err.error, err.error_description);
+                tracing::warn!(
+                    "Transient token error: {} - {}, retrying...",
+                    err.error,
+                    err.error_description
+                );
                 tokio::time::sleep(Duration::from_secs(2)).await;
                 continue;
             }

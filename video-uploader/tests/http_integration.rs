@@ -154,8 +154,7 @@ async fn test_http_raw_body_echoed_back() {
             let s = String::from_utf8_lossy(&buf[..n]);
             if let Some(pos) = s.find("\r\n\r\n") {
                 let body = &buf[pos + 4..n];
-                let resp =
-                    format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len());
+                let resp = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len());
                 let _ = stream.write_all(resp.as_bytes()).await;
                 let _ = stream.write_all(body).await;
             } else {
@@ -203,8 +202,8 @@ async fn test_http_connection_close_triggers_reconnect() {
             let _n = stream.read(&mut buf).await.unwrap_or(0);
             let mut guard = counter.lock().await;
             *guard += 1;
-            let resp =
-                "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nHello".to_string();
+            let resp = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nHello"
+                .to_string();
             let _ = stream.write_all(resp.as_bytes()).await;
             drop(stream);
         }

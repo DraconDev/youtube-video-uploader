@@ -235,29 +235,28 @@ impl CredentialStore {
             ));
         }
 
-        let (plaintext, needs_encryption_migration) =
-            if ciphertext.starts_with(FORMAT_MAGIC)
-                && ciphertext.len() > FORMAT_MAGIC.len()
-                && ciphertext[FORMAT_MAGIC.len()] == FORMAT_VERSION_V2
-            {
-                let plaintext =
-                    String::from_utf8(Self::decrypt_v2(passphrase, ciphertext)?).map_err(|e| {
-                        UploadError::Encryption(format!(
-                            "Credentials file corrupted (invalid UTF-8): {}",
-                            e
-                        ))
-                    })?;
-                (plaintext, false)
-            } else {
-                let plaintext =
-                    String::from_utf8(Self::decrypt_v1(passphrase, ciphertext)?).map_err(|e| {
-                        UploadError::Encryption(format!(
-                            "Credentials file corrupted (invalid UTF-8): {}",
-                            e
-                        ))
-                    })?;
-                (plaintext, true)
-            };
+        let (plaintext, needs_encryption_migration) = if ciphertext.starts_with(FORMAT_MAGIC)
+            && ciphertext.len() > FORMAT_MAGIC.len()
+            && ciphertext[FORMAT_MAGIC.len()] == FORMAT_VERSION_V2
+        {
+            let plaintext =
+                String::from_utf8(Self::decrypt_v2(passphrase, ciphertext)?).map_err(|e| {
+                    UploadError::Encryption(format!(
+                        "Credentials file corrupted (invalid UTF-8): {}",
+                        e
+                    ))
+                })?;
+            (plaintext, false)
+        } else {
+            let plaintext =
+                String::from_utf8(Self::decrypt_v1(passphrase, ciphertext)?).map_err(|e| {
+                    UploadError::Encryption(format!(
+                        "Credentials file corrupted (invalid UTF-8): {}",
+                        e
+                    ))
+                })?;
+            (plaintext, true)
+        };
 
         let (store, needs_format_migration) = Self::try_parse_toml(&plaintext)?;
 
@@ -269,9 +268,9 @@ impl CredentialStore {
         let value: toml::Value = toml::from_str(plaintext)
             .map_err(|e| UploadError::Encryption(format!("Invalid TOML: {e}")))?;
 
-        let table = value.as_table().ok_or_else(|| {
-            UploadError::Encryption("Credential file is not a TOML table".into())
-        })?;
+        let table = value
+            .as_table()
+            .ok_or_else(|| UploadError::Encryption("Credential file is not a TOML table".into()))?;
 
         // Empty store
         if table.is_empty() {
@@ -279,9 +278,7 @@ impl CredentialStore {
         }
 
         // New format indicators
-        if table.contains_key("workspaces")
-            || table.contains_key("default_workspace")
-        {
+        if table.contains_key("workspaces") || table.contains_key("default_workspace") {
             let store: CredentialStore = toml::from_str(plaintext).map_err(|e| {
                 UploadError::Encryption(format!("Failed to parse credentials: {e}"))
             })?;
@@ -562,7 +559,8 @@ mod tests {
             "test-workspace",
             PlatformCredentials::new(None, None, None, None),
         );
-        store.get_mut("test-workspace").unwrap().api_key = Some(Zeroizing::new("secret-key".to_string()));
+        store.get_mut("test-workspace").unwrap().api_key =
+            Some(Zeroizing::new("secret-key".to_string()));
 
         let passphrase = "test-passphrase";
 
@@ -588,7 +586,12 @@ mod tests {
         // Read back using load_from_path
         let loaded = CredentialStore::load_from_path(passphrase, &temp_path).unwrap();
         assert_eq!(
-            loaded.get("test-workspace").unwrap().api_key.as_ref().map(|z| z.as_str()),
+            loaded
+                .get("test-workspace")
+                .unwrap()
+                .api_key
+                .as_ref()
+                .map(|z| z.as_str()),
             Some("secret-key")
         );
 
@@ -624,11 +627,21 @@ mod tests {
         assert!(names.contains(&&"cooking".to_string()));
 
         assert_eq!(
-            store.get("youtube").unwrap().refresh_token.as_ref().map(|z| z.as_str()),
+            store
+                .get("youtube")
+                .unwrap()
+                .refresh_token
+                .as_ref()
+                .map(|z| z.as_str()),
             Some("yt-token")
         );
         assert_eq!(
-            store.get("cooking").unwrap().refresh_token.as_ref().map(|z| z.as_str()),
+            store
+                .get("cooking")
+                .unwrap()
+                .refresh_token
+                .as_ref()
+                .map(|z| z.as_str()),
             Some("cook-token")
         );
         assert!(store.get("missing").is_none());
@@ -656,7 +669,8 @@ mod tests {
                 Some("test-secret".to_string()),
             ),
         );
-        old_store.get_mut("youtube").unwrap().api_key = Some(Zeroizing::new("test-api-key".to_string()));
+        old_store.get_mut("youtube").unwrap().api_key =
+            Some(Zeroizing::new("test-api-key".to_string()));
 
         // Serialize the OLD way (flat HashMap without workspaces wrapper)
         let old_plaintext = toml::to_string(&old_store.workspaces).unwrap();
@@ -678,9 +692,18 @@ mod tests {
         let creds = loaded
             .get("youtube")
             .expect("youtube workspace should be migrated");
-        assert_eq!(creds.api_key.as_ref().map(|z| z.as_str()), Some("test-api-key"));
-        assert_eq!(creds.refresh_token.as_ref().map(|z| z.as_str()), Some("test-refresh"));
-        assert_eq!(creds.client_id.as_ref().map(|z| z.as_str()), Some("test-client"));
+        assert_eq!(
+            creds.api_key.as_ref().map(|z| z.as_str()),
+            Some("test-api-key")
+        );
+        assert_eq!(
+            creds.refresh_token.as_ref().map(|z| z.as_str()),
+            Some("test-refresh")
+        );
+        assert_eq!(
+            creds.client_id.as_ref().map(|z| z.as_str()),
+            Some("test-client")
+        );
 
         let _ = fs::remove_file(temp_file.path());
     }
@@ -714,12 +737,16 @@ mod tests {
         std::fs::write(temp_file.path(), &v1_data).unwrap();
 
         #[allow(deprecated)]
-        let loaded =
-            CredentialStore::load_from_path("combo-test-pass", temp_file.path()).unwrap();
+        let loaded = CredentialStore::load_from_path("combo-test-pass", temp_file.path()).unwrap();
 
         assert_eq!(loaded.default_workspace(), Some("youtube"));
         assert_eq!(
-            loaded.get("youtube").unwrap().refresh_token.as_ref().map(|z| z.as_str()),
+            loaded
+                .get("youtube")
+                .unwrap()
+                .refresh_token
+                .as_ref()
+                .map(|z| z.as_str()),
             Some("combo-refresh")
         );
 

@@ -57,9 +57,7 @@ where
         }
     }
 
-    Err(last_error.unwrap_or_else(|| {
-        UploadError::NoAttempts
-    }))
+    Err(last_error.unwrap_or_else(|| UploadError::NoAttempts))
 }
 
 /// Check if a host string resolves to a private (RFC 1918) IP address.

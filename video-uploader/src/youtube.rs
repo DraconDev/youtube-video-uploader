@@ -165,7 +165,13 @@ impl YouTubeUploader {
         let total_size = video.file_size().await?;
 
         let json = self
-            .upload_with_retry(&state.upload_url, video, &access_token, total_size, progress.clone())
+            .upload_with_retry(
+                &state.upload_url,
+                video,
+                &access_token,
+                total_size,
+                progress.clone(),
+            )
             .await
             .inspect_err(|e| {
                 if let Some(p) = &progress {
@@ -237,9 +243,9 @@ impl YouTubeUploader {
     async fn get_access_token(&self) -> Result<String, UploadError> {
         let (_access_token, refresh_tok, client_id, client_secret) = {
             let store = self.credential_store.lock().await;
-            let creds = store
-                .get(&self.workspace)
-                .ok_or_else(|| UploadError::Auth(format!("Workspace '{}' not configured", self.workspace)))?;
+            let creds = store.get(&self.workspace).ok_or_else(|| {
+                UploadError::Auth(format!("Workspace '{}' not configured", self.workspace))
+            })?;
             let token_expired = creds.token_expires_at.map(is_token_expired).unwrap_or(true);
             if !token_expired && let Some(ref tok) = creds.access_token {
                 return Ok(tok.as_str().to_string());
@@ -252,15 +258,15 @@ impl YouTubeUploader {
             )
         };
 
-        let refresh_tok = refresh_tok
-            .ok_or_else(|| UploadError::Auth("No refresh token".into()))?;
-        let client_id = client_id
-            .ok_or_else(|| UploadError::Auth("No client ID".into()))?;
+        let refresh_tok =
+            refresh_tok.ok_or_else(|| UploadError::Auth("No refresh token".into()))?;
+        let client_id = client_id.ok_or_else(|| UploadError::Auth("No client ID".into()))?;
         let client_secret =
             client_secret.ok_or_else(|| UploadError::Auth("No client secret".into()))?;
 
         tracing::info!("Refreshing YouTube access token");
-        let token = refresh_access_token(&self.client, &refresh_tok, &client_id, &client_secret).await?;
+        let token =
+            refresh_access_token(&self.client, &refresh_tok, &client_id, &client_secret).await?;
         let access_token = token.access_token.clone();
 
         {
@@ -289,9 +295,11 @@ impl YouTubeUploader {
     pub async fn fetch_channel_info(&self) -> Result<(String, String), UploadError> {
         let access_token = self.get_access_token().await?;
 
-        let url = "https://www.googleapis.com/youtube/v3/channels?mine=true&part=snippet".to_string();
+        let url =
+            "https://www.googleapis.com/youtube/v3/channels?mine=true&part=snippet".to_string();
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .bearer_auth(&access_token)
             .send()
@@ -307,13 +315,13 @@ impl YouTubeUploader {
             });
         }
 
-        let body: serde_json::Value = response
-            .json()
-            .await
-            .map_err(UploadError::Http)?;
+        let body: serde_json::Value = response.json().await.map_err(UploadError::Http)?;
 
         let items = body["items"].as_array().ok_or_else(|| {
-            UploadError::Auth("channels.list returned no items — no YouTube channel found for this account".to_string())
+            UploadError::Auth(
+                "channels.list returned no items — no YouTube channel found for this account"
+                    .to_string(),
+            )
         })?;
 
         if items.is_empty() {
@@ -324,7 +332,10 @@ impl YouTubeUploader {
 
         let channel = &items[0];
         let channel_id = channel["id"].as_str().unwrap_or("").to_string();
-        let channel_title = channel["snippet"]["title"].as_str().unwrap_or("(unknown)").to_string();
+        let channel_title = channel["snippet"]["title"]
+            .as_str()
+            .unwrap_or("(unknown)")
+            .to_string();
 
         Ok((channel_id, channel_title))
     }
@@ -336,7 +347,8 @@ impl YouTubeUploader {
         access_token: &str,
         total_size: u64,
     ) -> Result<String, UploadError> {
-        self.initiate_resumable_inner(video, access_token, total_size).await
+        self.initiate_resumable_inner(video, access_token, total_size)
+            .await
     }
 
     #[cfg(feature = "test-utils")]
@@ -369,8 +381,13 @@ impl YouTubeUploader {
         access_token: &str,
         total_size: u64,
     ) -> Result<String, UploadError> {
-        self.initiate_resumable_with_url(&youtube_upload_endpoint(), video, access_token, total_size)
-            .await
+        self.initiate_resumable_with_url(
+            &youtube_upload_endpoint(),
+            video,
+            access_token,
+            total_size,
+        )
+        .await
     }
 
     async fn initiate_resumable_with_url(
@@ -504,7 +521,8 @@ impl YouTubeUploader {
         access_token: &str,
         total_size: u64,
     ) -> Result<String, UploadError> {
-        self.initiate_resumable_inner(video, access_token, total_size).await
+        self.initiate_resumable_inner(video, access_token, total_size)
+            .await
     }
 
     #[instrument(skip(self, video, progress), fields(workspace = %self.workspace, title = %video.title))]
@@ -622,7 +640,15 @@ impl YouTubeUploader {
         progress: Option<Arc<dyn ProgressListener>>,
     ) -> Result<serde_json::Value, UploadError> {
         retry(
-            || self.upload_chunks(upload_url, video, access_token, total_size, progress.clone()),
+            || {
+                self.upload_chunks(
+                    upload_url,
+                    video,
+                    access_token,
+                    total_size,
+                    progress.clone(),
+                )
+            },
             MAX_RETRIES,
         )
         .await
@@ -641,7 +667,13 @@ impl YouTubeUploader {
             .await?;
 
         let json = self
-            .upload_with_retry(&upload_url, video, &access_token, total_size, progress.clone())
+            .upload_with_retry(
+                &upload_url,
+                video,
+                &access_token,
+                total_size,
+                progress.clone(),
+            )
             .await
             .inspect_err(|e| {
                 if let Some(p) = &progress {

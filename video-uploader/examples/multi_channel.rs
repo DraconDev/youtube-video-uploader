@@ -24,20 +24,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let default = s.default_workspace();
         println!("Configured workspaces:");
         for ws in s.workspaces() {
-            let marker = if default == Some(ws.as_str()) { " (default)" } else { "" };
+            let marker = if default == Some(ws.as_str()) {
+                " (default)"
+            } else {
+                ""
+            };
             println!("  - {}{marker}", ws);
         }
     }
 
     // Upload to the "gaming" workspace
     let gaming_uploader = YouTubeUploader::new(store.clone(), &passphrase, "gaming");
-    let gaming_video = VideoUpload::new("./gameplay.mp4", "Let's Play")
-        .with_visibility(Visibility::Private);
+    let gaming_video =
+        VideoUpload::new("./gameplay.mp4", "Let's Play").with_visibility(Visibility::Private);
 
     // Upload to the "cooking" workspace
     let cooking_uploader = YouTubeUploader::new(store.clone(), &passphrase, "cooking");
-    let cooking_video = VideoUpload::new("./recipe.mp4", "New Recipe")
-        .with_visibility(Visibility::Unlisted);
+    let cooking_video =
+        VideoUpload::new("./recipe.mp4", "New Recipe").with_visibility(Visibility::Unlisted);
 
     // Upload both concurrently
     let progress = Arc::new(NoopProgressListener);

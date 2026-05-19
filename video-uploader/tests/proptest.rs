@@ -171,7 +171,12 @@ fn proptest_credential_store_roundtrip_random_data() {
     let loaded = CredentialStore::load_from_path(passphrase, temp_path).unwrap();
 
     assert_eq!(
-        loaded.get("youtube").unwrap().refresh_token.as_ref().map(|z| z.as_str()),
+        loaded
+            .get("youtube")
+            .unwrap()
+            .refresh_token
+            .as_ref()
+            .map(|z| z.as_str()),
         Some("test_refresh_token_123")
     );
 

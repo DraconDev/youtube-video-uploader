@@ -20,13 +20,14 @@ pub struct PkcePair {
 
 impl PkcePair {
     pub fn generate() -> Self {
-        use sha2::{Digest, Sha256};
         use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+        use sha2::{Digest, Sha256};
 
         // Generate random verifier (43-128 chars, RFC 7636)
         let verifier: String = (0..43)
             .map(|_| {
-                const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+                const CHARSET: &[u8] =
+                    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
                 let idx = (rand::random::<u32>() as usize) % CHARSET.len();
                 CHARSET[idx] as char
             })
@@ -151,22 +152,17 @@ pub async fn auth_code_flow(
         ("grant_type", "authorization_code".to_string()),
     ];
 
-    let response = client
-        .post(google_token_url())
-        .form(&params)
-        .send()
-        .await?;
+    let response = client.post(google_token_url()).form(&params).send().await?;
 
     if !response.status().is_success() {
         let text = response.text().await.unwrap_or_default();
-        return Err(UploadError::Auth(format!(
-            "Token exchange failed: {text}"
-        )));
+        return Err(UploadError::Auth(format!("Token exchange failed: {text}")));
     }
 
-    let token: TokenResponse = response.json().await.map_err(|e| {
-        UploadError::Auth(format!("Failed to parse token response: {e}"))
-    })?;
+    let token: TokenResponse = response
+        .json()
+        .await
+        .map_err(|e| UploadError::Auth(format!("Failed to parse token response: {e}")))?;
 
     Ok(token)
 }

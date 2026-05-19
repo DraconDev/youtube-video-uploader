@@ -4,7 +4,11 @@
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use video_uploader::{UploadError, YouTubeUploader, config::{CredentialStore, PlatformCredentials}, upload::VideoUpload};
+use video_uploader::{
+    UploadError, YouTubeUploader,
+    config::{CredentialStore, PlatformCredentials},
+    upload::VideoUpload,
+};
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
     matchers::{body_string_contains, method, path, query_param},
@@ -45,11 +49,11 @@ async fn test_youtube_chunk_upload_success() {
 
     let result = uploader
         .upload_chunks(
-    &format!("{}/upload", mock_server.uri()),
-    &video,
-    "tok",
-    video.file_size().await.unwrap(),
-    None,
+            &format!("{}/upload", mock_server.uri()),
+            &video,
+            "tok",
+            video.file_size().await.unwrap(),
+            None,
         )
         .await;
 
@@ -91,11 +95,11 @@ async fn test_youtube_chunk_upload_308_resume() {
 
     let result = uploader
         .upload_chunks(
-    &format!("{}/upload", mock_server.uri()),
-    &video,
-    "tok",
-    video.file_size().await.unwrap(),
-    None,
+            &format!("{}/upload", mock_server.uri()),
+            &video,
+            "tok",
+            video.file_size().await.unwrap(),
+            None,
         )
         .await;
 
@@ -272,7 +276,15 @@ async fn test_upload_chunks_rejects_http_upload_url() {
     let video = VideoUpload::new(fixture_video(), "Test");
 
     let http_url = format!("{}/upload", mock_server.uri());
-    let result = uploader.upload_chunks(&http_url, &video, "tok", video.file_size().await.unwrap(), None).await;
+    let result = uploader
+        .upload_chunks(
+            &http_url,
+            &video,
+            "tok",
+            video.file_size().await.unwrap(),
+            None,
+        )
+        .await;
 
     assert!(
         result.is_ok(),
@@ -770,11 +782,11 @@ async fn test_youtube_upload_respects_caller_timeout() {
     let result = tokio::time::timeout(
         std::time::Duration::from_millis(100),
         uploader.upload_chunks(
-    &format!("{}/upload", mock_server.uri()),
-    &video,
-    "tok",
-    video.file_size().await.unwrap(),
-    None,
+            &format!("{}/upload", mock_server.uri()),
+            &video,
+            "tok",
+            video.file_size().await.unwrap(),
+            None,
         ),
     )
     .await;
@@ -924,7 +936,10 @@ async fn test_fetch_channel_info_parses_response() {
 
     let client = video_uploader::net::build_http_client();
     let response = client
-        .get(&format!("{}/youtube/v3/channels?mine=true&part=snippet", base))
+        .get(&format!(
+            "{}/youtube/v3/channels?mine=true&part=snippet",
+            base
+        ))
         .bearer_auth("ya29.channel_test")
         .send()
         .await
@@ -934,7 +949,10 @@ async fn test_fetch_channel_info_parses_response() {
     let items = json["items"].as_array().expect("should have items");
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["id"].as_str(), Some("UCtest123"));
-    assert_eq!(items[0]["snippet"]["title"].as_str(), Some("Test Channel Name"));
+    assert_eq!(
+        items[0]["snippet"]["title"].as_str(),
+        Some("Test Channel Name")
+    );
 }
 
 #[tokio::test]
@@ -951,7 +969,10 @@ async fn test_fetch_channel_info_empty_items() {
 
     let client = video_uploader::net::build_http_client();
     let response = client
-        .get(&format!("{}/youtube/v3/channels?mine=true&part=snippet", base))
+        .get(&format!(
+            "{}/youtube/v3/channels?mine=true&part=snippet",
+            base
+        ))
         .bearer_auth("ya29.test")
         .send()
         .await

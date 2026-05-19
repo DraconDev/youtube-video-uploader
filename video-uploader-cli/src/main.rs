@@ -69,7 +69,11 @@ enum Commands {
         #[arg(long, help = "Comma-separated tags")]
         tags: Option<String>,
 
-        #[arg(long, short, help = "Visibility: public, unlisted, private (default from profile/built-in: private)")]
+        #[arg(
+            long,
+            short,
+            help = "Visibility: public, unlisted, private (default from profile/built-in: private)"
+        )]
         visibility: Option<VisibilityArg>,
 
         #[arg(long, help = "YouTube category ID (default: 22 People & Blogs)")]
@@ -93,7 +97,10 @@ enum Commands {
         #[arg(long, help = "Show public view counts")]
         public_stats_viewable: Option<bool>,
 
-        #[arg(long, help = "Scheduled publish time (ISO 8601, e.g. 2026-05-20T09:00:00Z)")]
+        #[arg(
+            long,
+            help = "Scheduled publish time (ISO 8601, e.g. 2026-05-20T09:00:00Z)"
+        )]
         publish_at: Option<String>,
 
         #[arg(long, help = "Text to append to the description")]
@@ -102,7 +109,10 @@ enum Commands {
         #[arg(long, help = "Recording date (ISO 8601, e.g. 2026-05-18)")]
         recording_date: Option<String>,
 
-        #[arg(long, help = "Path to per-video metadata TOML (auto-discovered: <video>.meta.toml)")]
+        #[arg(
+            long,
+            help = "Path to per-video metadata TOML (auto-discovered: <video>.meta.toml)"
+        )]
         meta: Option<String>,
     },
     /// List configured workspaces
@@ -141,16 +151,9 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum WorkspaceAction {
-    Default {
-        name: String,
-    },
-    Rename {
-        old: String,
-        new: String,
-    },
-    Remove {
-        name: String,
-    },
+    Default { name: String },
+    Rename { old: String, new: String },
+    Remove { name: String },
 }
 
 /// Subcommands for managing upload profiles.
@@ -159,13 +162,9 @@ enum ProfileAction {
     /// List available profiles
     List,
     /// Show the contents of a profile
-    Show {
-        name: String,
-    },
+    Show { name: String },
     /// Delete a profile
-    Remove {
-        name: String,
-    },
+    Remove { name: String },
 }
 
 #[derive(clap::ValueEnum, Clone, Default, Debug)]
@@ -443,7 +442,10 @@ async fn main() -> anyhow::Result<()> {
                 .or_else(|| store.default_workspace().map(String::from))
                 .unwrap_or_else(|| "youtube".to_string());
 
-            tracing::info!("Starting YouTube authorization for workspace '{}'...", workspace);
+            tracing::info!(
+                "Starting YouTube authorization for workspace '{}'...",
+                workspace
+            );
             tracing::info!("YouTube OAuth2 requires a one-time setup.");
             tracing::info!(
                 "Get your credentials from: https://console.cloud.google.com/apis/credentials"
@@ -451,17 +453,26 @@ async fn main() -> anyhow::Result<()> {
 
             // Try device code flow first (works with "TVs and Limited Input" client type),
             // fall back to authorization code flow (works with "Web" and "Installed" client types)
-            let token = match device_code::run_device_code_flow(&client_id, &client_secret, |resp| {
-                output::auth_banner(&resp.user_code, &resp.verification_url);
-            })
+            let token = match device_code::run_device_code_flow(
+                &client_id,
+                &client_secret,
+                |resp| {
+                    output::auth_banner(&resp.user_code, &resp.verification_url);
+                },
+            )
             .await
             {
                 Ok(token) => token,
                 Err(e) => {
                     let err_msg = e.to_string();
-                    if err_msg.contains("invalid_client") || err_msg.contains("TVs and Limited Input") {
-                        tracing::info!("Device code flow not supported for this client type, switching to browser auth...");
-                        video_uploader::auth::auth_code::auth_code_flow(&client_id, &client_secret).await?
+                    if err_msg.contains("invalid_client")
+                        || err_msg.contains("TVs and Limited Input")
+                    {
+                        tracing::info!(
+                            "Device code flow not supported for this client type, switching to browser auth..."
+                        );
+                        video_uploader::auth::auth_code::auth_code_flow(&client_id, &client_secret)
+                            .await?
                     } else {
                         return Err(anyhow::anyhow!("Auth failed: {e}"));
                     }
@@ -486,11 +497,7 @@ async fn main() -> anyhow::Result<()> {
 
             // Fetch channel info to confirm which channel was authorized
             let store = Arc::new(Mutex::new(store));
-            let youtube = YouTubeUploader::new(
-                Arc::clone(&store),
-                &passphrase,
-                &workspace,
-            );
+            let youtube = YouTubeUploader::new(Arc::clone(&store), &passphrase, &workspace);
             match youtube.fetch_channel_info().await {
                 Ok((channel_id, channel_title)) => {
                     let mut guard = store.lock().await;
@@ -534,7 +541,9 @@ async fn main() -> anyhow::Result<()> {
             let file = expand_tilde(&file);
 
             // 1. Load meta TOML: explicit --meta flag > auto-discover <video>.meta.toml
-            let meta_path = meta.as_deref().map(std::path::PathBuf::from)
+            let meta_path = meta
+                .as_deref()
+                .map(std::path::PathBuf::from)
                 .or_else(|| video_uploader::VideoMeta::discover(std::path::Path::new(&file)));
             let video_meta = if let Some(ref path) = meta_path {
                 output::info(&format!("Loading metadata from {}", path.display()));
@@ -606,22 +615,20 @@ async fn main() -> anyhow::Result<()> {
 
             let progress = Arc::new(StderrProgressListener::new());
             match youtube.upload(&video, Some(progress.clone())).await {
-                Ok(r) => {
-                    match cli.output {
-                        OutputFormat::Human => {
-                            output::upload_result(
-                                &r.workspace,
-                                &r.video_id,
-                                &r.url,
-                                &r.title,
-                                &video.visibility().to_string(),
-                            );
-                        }
-                        OutputFormat::Json => {
-                            output::upload_result_json(&r);
-                        }
+                Ok(r) => match cli.output {
+                    OutputFormat::Human => {
+                        output::upload_result(
+                            &r.workspace,
+                            &r.video_id,
+                            &r.url,
+                            &r.title,
+                            &video.visibility().to_string(),
+                        );
                     }
-                }
+                    OutputFormat::Json => {
+                        output::upload_result_json(&r);
+                    }
+                },
                 Err(e) => {
                     return Err(anyhow::anyhow!("Upload failed: {e}"));
                 }
@@ -634,7 +641,10 @@ async fn main() -> anyhow::Result<()> {
             concurrency,
         } => {
             let entries = parse_csv_manifest(&manifest)?;
-            output::info(&format!("Batch manifest loaded: {} video(s)", entries.len()));
+            output::info(&format!(
+                "Batch manifest loaded: {} video(s)",
+                entries.len()
+            ));
 
             if dry_run {
                 let preview: Vec<(String, String, Option<String>)> = entries
@@ -692,7 +702,8 @@ async fn main() -> anyhow::Result<()> {
 
                     let video = {
                         // Per-row profile: CSV profile column > --profile flag
-                        let row_profile = entry.profile.as_deref().or(row_global_profile.as_deref());
+                        let row_profile =
+                            entry.profile.as_deref().or(row_global_profile.as_deref());
                         let profile = match video_uploader::UploadProfile::resolve(row_profile) {
                             Ok(p) => p,
                             Err(e) => {
@@ -702,9 +713,9 @@ async fn main() -> anyhow::Result<()> {
                         };
 
                         // Auto-discover meta TOML for this video
-                        let meta_path = video_uploader::VideoMeta::discover(
-                            std::path::Path::new(&expand_tilde(&entry.file))
-                        );
+                        let meta_path = video_uploader::VideoMeta::discover(std::path::Path::new(
+                            &expand_tilde(&entry.file),
+                        ));
                         let video_meta = match meta_path {
                             Some(ref path) => match video_uploader::VideoMeta::load_from(path) {
                                 Ok(m) => m,
@@ -771,7 +782,9 @@ async fn main() -> anyhow::Result<()> {
             }
             let succeeded = total - validation_errors.len();
             match cli.output {
-                OutputFormat::Human => output::batch_summary(total, succeeded, validation_errors.len()),
+                OutputFormat::Human => {
+                    output::batch_summary(total, succeeded, validation_errors.len())
+                }
                 OutputFormat::Json => {
                     let summary = serde_json::json!({
                         "total": total,
@@ -804,11 +817,7 @@ async fn main() -> anyhow::Result<()> {
                 let guard = store.lock().await;
                 resolve_workspace(&guard, workspace.as_deref())?
             };
-            let youtube = YouTubeUploader::new(
-                Arc::clone(&store),
-                &passphrase,
-                &ws,
-            );
+            let youtube = YouTubeUploader::new(Arc::clone(&store), &passphrase, &ws);
             match youtube.fetch_channel_info().await {
                 Ok((channel_id, channel_title)) => {
                     // Update stored channel info
@@ -843,10 +852,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 WorkspaceAction::Rename { old, new } => {
                     if store.get(&old).is_none() {
-                        return Err(anyhow::anyhow!(
-                            "Workspace '{}' does not exist.",
-                            old
-                        ));
+                        return Err(anyhow::anyhow!("Workspace '{}' does not exist.", old));
                     }
                     let creds = store.remove(&old).expect("checked above");
                     store.set(&new, creds);
@@ -858,10 +864,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 WorkspaceAction::Remove { name } => {
                     if store.get(&name).is_none() {
-                        return Err(anyhow::anyhow!(
-                            "Workspace '{}' does not exist.",
-                            name
-                        ));
+                        return Err(anyhow::anyhow!("Workspace '{}' does not exist.", name));
                     }
                     store.remove(&name);
                     if store.default_workspace() == Some(&name) {
@@ -872,23 +875,21 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Commands::Profile { action } => {
-            match action {
-                ProfileAction::List => {
-                    let profiles_map = video_uploader::UploadProfile::list()?;
-                    let profiles: Vec<_> = profiles_map.into_iter().collect();
-                    output::profile_list(&profiles);
-                }
-                ProfileAction::Show { name } => {
-                    let profile = video_uploader::UploadProfile::load(&name)?;
-                    output::profile_show(&name, &profile);
-                }
-                ProfileAction::Remove { name } => {
-                    video_uploader::UploadProfile::remove(&name)?;
-                    output::profile_removed(&name);
-                }
+        Commands::Profile { action } => match action {
+            ProfileAction::List => {
+                let profiles_map = video_uploader::UploadProfile::list()?;
+                let profiles: Vec<_> = profiles_map.into_iter().collect();
+                output::profile_list(&profiles);
             }
-        }
+            ProfileAction::Show { name } => {
+                let profile = video_uploader::UploadProfile::load(&name)?;
+                output::profile_show(&name, &profile);
+            }
+            ProfileAction::Remove { name } => {
+                video_uploader::UploadProfile::remove(&name)?;
+                output::profile_removed(&name);
+            }
+        },
     }
 
     Ok(())

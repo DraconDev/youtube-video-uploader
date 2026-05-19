@@ -134,13 +134,11 @@ impl UploadProfile {
             return Ok(Self::default());
         }
 
-        let content = std::fs::read_to_string(&path).map_err(|e| {
-            UploadError::Config(format!("Failed to read profile '{}': {e}", name))
-        })?;
+        let content = std::fs::read_to_string(&path)
+            .map_err(|e| UploadError::Config(format!("Failed to read profile '{}': {e}", name)))?;
 
-        let profile: Self = toml::from_str(&content).map_err(|e| {
-            UploadError::Config(format!("Failed to parse profile '{}': {e}", name))
-        })?;
+        let profile: Self = toml::from_str(&content)
+            .map_err(|e| UploadError::Config(format!("Failed to parse profile '{}': {e}", name)))?;
 
         Ok(profile)
     }
@@ -153,12 +151,11 @@ impl UploadProfile {
         }
 
         let mut profiles = HashMap::new();
-        for entry in std::fs::read_dir(&dir).map_err(|e| {
-            UploadError::Config(format!("Failed to read profiles directory: {e}"))
-        })? {
-            let entry = entry.map_err(|e| {
-                UploadError::Config(format!("Failed to read directory entry: {e}"))
-            })?;
+        for entry in std::fs::read_dir(&dir)
+            .map_err(|e| UploadError::Config(format!("Failed to read profiles directory: {e}")))?
+        {
+            let entry = entry
+                .map_err(|e| UploadError::Config(format!("Failed to read directory entry: {e}")))?;
             let path = entry.path();
             if path.extension().is_some_and(|ext| ext == "toml") {
                 let name = path
@@ -201,9 +198,8 @@ impl UploadProfile {
                 "Profile '{name}' does not exist"
             )));
         }
-        std::fs::remove_file(&path).map_err(|e| {
-            UploadError::Config(format!("Failed to remove profile '{name}': {e}"))
-        })
+        std::fs::remove_file(&path)
+            .map_err(|e| UploadError::Config(format!("Failed to remove profile '{name}': {e}")))
     }
 }
 
@@ -214,10 +210,16 @@ impl VideoMeta {
             return Ok(Self::default());
         }
         let content = std::fs::read_to_string(path).map_err(|e| {
-            UploadError::Config(format!("Failed to read meta file '{}': {e}", path.display()))
+            UploadError::Config(format!(
+                "Failed to read meta file '{}': {e}",
+                path.display()
+            ))
         })?;
         let meta: Self = toml::from_str(&content).map_err(|e| {
-            UploadError::Config(format!("Failed to parse meta file '{}': {e}", path.display()))
+            UploadError::Config(format!(
+                "Failed to parse meta file '{}': {e}",
+                path.display()
+            ))
         })?;
         Ok(meta)
     }
@@ -456,7 +458,8 @@ profile = "gaming"
     fn test_video_meta_apply_to_overrides_fields() {
         use crate::{VideoUpload, Visibility};
 
-        let meta: VideoMeta = toml::from_str(r#"
+        let meta: VideoMeta = toml::from_str(
+            r#"
 title = "Meta Title"
 description = "Meta Description"
 tags = ["meta", "tags"]
@@ -465,7 +468,9 @@ category = "20"
 made_for_kids = true
 license = "creative-common"
 language = "es"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let video = VideoUpload::new("/tmp/video.mp4", "Original Title");
         let video = meta.apply_to(video);
@@ -495,12 +500,16 @@ language = "es"
         let dir = std::env::temp_dir().join("vu_test_meta_load");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("test.meta.toml");
-        std::fs::write(&path, r#"
+        std::fs::write(
+            &path,
+            r#"
 title = "Loaded Title"
 description = "From file"
 tags = ["test"]
 visibility = "public"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let meta = VideoMeta::load_from(&path).unwrap();
         assert_eq!(meta.title.as_deref(), Some("Loaded Title"));
@@ -533,7 +542,8 @@ visibility = "public"
     fn test_video_meta_apply_to_all_fields() {
         use crate::{VideoUpload, Visibility};
 
-        let meta: VideoMeta = toml::from_str(r##"
+        let meta: VideoMeta = toml::from_str(
+            r##"
 title = "Meta Title"
 description = "Meta Desc"
 tags = ["a", "b"]
@@ -548,7 +558,9 @@ public_stats_viewable = true
 description_suffix = "\nSuffix"
 publish_at = "2026-08-01T00:00:00Z"
 recording_date = "2026-05-18"
-"##).unwrap();
+"##,
+        )
+        .unwrap();
 
         let video = meta.apply_to(VideoUpload::new("/tmp/v.mp4", "Original"));
 

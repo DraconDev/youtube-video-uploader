@@ -209,13 +209,7 @@ pub fn auth_success_with_channel(workspace: &str, channel_name: &str, channel_id
 // ─── Upload results ─────────────────────────────────────────────────
 
 /// Print the upload result.
-pub fn upload_result(
-    workspace: &str,
-    video_id: &str,
-    url: &str,
-    title: &str,
-    visibility: &str,
-) {
+pub fn upload_result(workspace: &str, video_id: &str, url: &str, title: &str, visibility: &str) {
     eprintln!();
     header("Upload Complete");
     kv("Title", title);
@@ -275,7 +269,10 @@ pub fn upload_result_json(result: &video_uploader::UploadResult) {
 
 /// Print the batch progress line.
 pub fn batch_progress(current: usize, total: usize, workspace: &str, title: &str) {
-    eprintln!("\n  [{}/{}] [{}] Uploading: {}", current, total, workspace, title);
+    eprintln!(
+        "\n  [{}/{}] [{}] Uploading: {}",
+        current, total, workspace, title
+    );
 }
 
 /// Print a batch item result.
@@ -328,11 +325,19 @@ pub fn batch_summary_detailed(
     sub_header("Results");
     for (title, ok, url_or_err) in results {
         if *ok && url_or_err.is_some() {
-            eprintln!("  \u{2714} {} \u{2192} {}", title, url_or_err.as_deref().unwrap());
+            eprintln!(
+                "  \u{2714} {} \u{2192} {}",
+                title,
+                url_or_err.as_deref().unwrap()
+            );
         } else if *ok {
             success(title);
         } else {
-            eprintln!("  \u{2718} {} \u{2192} {}", title, url_or_err.as_deref().unwrap_or("unknown error"));
+            eprintln!(
+                "  \u{2718} {} \u{2192} {}",
+                title,
+                url_or_err.as_deref().unwrap_or("unknown error")
+            );
         }
     }
     eprintln!();

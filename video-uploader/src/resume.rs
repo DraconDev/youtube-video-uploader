@@ -73,18 +73,15 @@ impl UploadState {
     /// State is written to `~/.config/video-uploader/resume/{hash}.json`.
     pub fn save(&self) -> Result<PathBuf, UploadError> {
         let dir = Self::resume_dir()?;
-        std::fs::create_dir_all(&dir).map_err(|e| UploadError::Config(format!(
-            "Failed to create resume directory: {e}"
-        )))?;
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| UploadError::Config(format!("Failed to create resume directory: {e}")))?;
 
         let path = dir.join(self.state_filename());
-        let json = serde_json::to_string_pretty(self).map_err(|e| UploadError::Config(format!(
-            "Failed to serialize resume state: {e}"
-        )))?;
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| UploadError::Config(format!("Failed to serialize resume state: {e}")))?;
 
-        std::fs::write(&path, json).map_err(|e| UploadError::Config(format!(
-            "Failed to write resume state: {e}"
-        )))?;
+        std::fs::write(&path, json)
+            .map_err(|e| UploadError::Config(format!("Failed to write resume state: {e}")))?;
 
         Ok(path)
     }
@@ -97,21 +94,19 @@ impl UploadState {
         }
 
         // Look for any state file and check if it matches
-        for entry in std::fs::read_dir(&dir).map_err(|e| UploadError::Config(format!(
-            "Failed to read resume directory: {e}"
-        )))? {
-            let entry = entry.map_err(|e| UploadError::Config(format!(
-                "Failed to read directory entry: {e}"
-            )))?;
+        for entry in std::fs::read_dir(&dir)
+            .map_err(|e| UploadError::Config(format!("Failed to read resume directory: {e}")))?
+        {
+            let entry = entry
+                .map_err(|e| UploadError::Config(format!("Failed to read directory entry: {e}")))?;
             let path = entry.path();
             if path.extension().is_some_and(|ext| ext == "json") {
-                let content = std::fs::read_to_string(&path).map_err(|e| UploadError::Config(format!(
-                    "Failed to read resume state: {e}"
-                )))?;
+                let content = std::fs::read_to_string(&path).map_err(|e| {
+                    UploadError::Config(format!("Failed to read resume state: {e}"))
+                })?;
                 if let Ok(state) = serde_json::from_str::<Self>(&content)
                     && state.file_path == file_path
-                {
-                }
+                {}
             }
         }
         Ok(None)
@@ -122,9 +117,8 @@ impl UploadState {
         let dir = Self::resume_dir()?;
         let path = dir.join(self.state_filename());
         if path.exists() {
-            std::fs::remove_file(&path).map_err(|e| UploadError::Config(format!(
-                "Failed to delete resume state: {e}"
-            )))?;
+            std::fs::remove_file(&path)
+                .map_err(|e| UploadError::Config(format!("Failed to delete resume state: {e}")))?;
         }
         Ok(())
     }
