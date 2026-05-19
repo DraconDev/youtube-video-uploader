@@ -540,13 +540,14 @@ tags = ["profile"]
 "##).unwrap();
 
         let video = VideoUpload::new("/tmp/v.mp4", "Title")
-            .with_visibility(Visibility::Private)
+            .with_visibility(Visibility::Unlisted)  // explicitly set (not default)
             .with_category("28")
             .with_made_for_kids(false)
             .with_tags(vec!["my-tag".into()])
             .apply_profile(&profile);
 
-        assert_eq!(video.visibility(), Visibility::Private);
+        // Explicit non-default values win over profile
+        assert_eq!(video.visibility(), Visibility::Unlisted);
         assert_eq!(video.category_id(), Some("28"));
         assert_eq!(video.made_for_kids(), Some(false));
         assert!(video.tags().contains(&"my-tag".to_string()));
