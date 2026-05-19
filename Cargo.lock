@@ -2240,54 +2240,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
-name = "video-uploader"
-version = "0.4.13"
-dependencies = [
- "aes-gcm",
- "anyhow",
- "base64",
- "dirs",
- "mime_guess",
- "open",
- "pbkdf2",
- "proptest",
- "rand",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-test",
- "toml",
- "tracing",
- "url",
- "urlencoding",
- "wiremock",
- "zeroize",
-]
-
-[[package]]
-name = "video-uploader-cli"
-version = "0.4.13"
-dependencies = [
- "anyhow",
- "assert_cmd",
- "clap",
- "csv",
- "dirs",
- "dotenvy",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "video-uploader",
-]
-
-[[package]]
 name = "wait-timeout"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2711,6 +2663,54 @@ dependencies = [
  "quote",
  "syn",
  "synstructure",
+]
+
+[[package]]
+name = "youtube-uploader"
+version = "0.5.0"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "base64",
+ "dirs",
+ "mime_guess",
+ "open",
+ "pbkdf2",
+ "proptest",
+ "rand",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-test",
+ "toml",
+ "tracing",
+ "url",
+ "urlencoding",
+ "wiremock",
+ "zeroize",
+]
+
+[[package]]
+name = "youtube-uploader-cli"
+version = "0.5.0"
+dependencies = [
+ "anyhow",
+ "assert_cmd",
+ "clap",
+ "csv",
+ "dirs",
+ "dotenvy",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "youtube-uploader",
 ]
 
 [[package]]
