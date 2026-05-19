@@ -227,39 +227,39 @@ pub fn upload_result(
     eprintln!();
 }
 
+/// Details for an upload result display.
+#[allow(dead_code)]
+pub struct UploadResultDetails<'a> {
+    pub workspace: &'a str,
+    pub video_id: &'a str,
+    pub url: &'a str,
+    pub title: &'a str,
+    pub visibility: &'a str,
+    pub description: Option<&'a str>,
+    pub tags: Option<&'a [String]>,
+    pub category: Option<&'a str>,
+}
+
 /// Print the upload result with full metadata.
 #[allow(dead_code)]
-pub fn upload_result_full(
-    workspace: &str,
-    video_id: &str,
-    url: &str,
-    title: &str,
-    visibility: &str,
-    description: Option<&str>,
-    tags: Option<&[String]>,
-    category: Option<&str>,
-) {
+pub fn upload_result_full(d: &UploadResultDetails<'_>) {
     eprintln!();
     header("Upload Complete");
-    kv("Title", title);
-    kv("Workspace", workspace);
-    kv("Visibility", visibility);
-    kv("Video ID", video_id);
-    if let Some(desc) = description {
-        if !desc.is_empty() {
-            kv_wrap("Description", desc);
-        }
+    kv("Title", d.title);
+    kv("Workspace", d.workspace);
+    kv("Visibility", d.visibility);
+    kv("Video ID", d.video_id);
+    if let Some(desc) = d.description.filter(|s| !s.is_empty()) {
+        kv_wrap("Description", desc);
     }
-    if let Some(t) = tags {
-        if !t.is_empty() {
-            kv("Tags", &t.join(", "));
-        }
+    if let Some(t) = d.tags.filter(|t| !t.is_empty()) {
+        kv("Tags", &t.join(", "));
     }
-    if let Some(c) = category {
+    if let Some(c) = d.category {
         kv("Category", c);
     }
     eprintln!();
-    eprintln!("  \u{25B8} {url}");
+    eprintln!("  \u{25B8} {}", d.url);
     eprintln!();
 }
 
@@ -327,12 +327,10 @@ pub fn batch_summary_detailed(
 
     sub_header("Results");
     for (title, ok, url_or_err) in results {
-        if *ok {
-            if let Some(url) = url_or_err {
-                eprintln!("  \u{2714} {} \u{2192} {}", title, url);
-            } else {
-                success(&title);
-            }
+        if *ok && url_or_err.is_some() {
+            eprintln!("  \u{2714} {} \u{2192} {}", title, url_or_err.as_deref().unwrap());
+        } else if *ok {
+            success(title);
         } else {
             eprintln!("  \u{2718} {} \u{2192} {}", title, url_or_err.as_deref().unwrap_or("unknown error"));
         }
@@ -480,7 +478,6 @@ pub fn quota_info(used: u64, total: u64) {
 }
 
 /// Print validation errors.
-#[allow(dead_code)]
 pub fn validation_errors(errors: &[String]) {
     if errors.is_empty() {
         return;
