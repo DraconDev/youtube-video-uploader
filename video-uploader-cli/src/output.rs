@@ -345,7 +345,7 @@ pub fn dry_run(entries: &[(String, String, Option<String>)]) {
 }
 
 /// Print batch CSV column warning.
-pub fn batch_csv_missing_columns(columns: &[String]) {
+pub fn batch_csv_missing_columns(columns: &[&str]) {
     warn(&format!(
         "CSV manifest is missing optional columns: {}",
         columns.join(", ")
