@@ -505,7 +505,7 @@ mod tests {
     #[test]
     fn test_apply_profile_fills_unset_fields() {
         use crate::UploadProfile;
-        let profile: UploadProfile = toml::from_str(r#"
+        let profile: UploadProfile = toml::from_str(r##"
 visibility = "unlisted"
 category = "20"
 made_for_kids = false
@@ -518,7 +518,7 @@ tags = ["profile-tag"]
 description_suffix = "\nSUFFIX"
 publish_at = "2026-07-01T00:00:00Z"
 recording_date = "2026-05-01"
-"#").unwrap();
+"##).unwrap();
 
         let video = VideoUpload::new("/tmp/v.mp4", "Title")
             .apply_profile(&profile);
@@ -526,19 +526,18 @@ recording_date = "2026-05-01"
         assert_eq!(video.visibility(), Visibility::Unlisted);
         assert_eq!(video.category_id(), Some("20"));
         assert_eq!(video.made_for_kids(), Some(false));
-        // Tags are merged and sorted: ["profile-tag"]
         assert_eq!(video.tags(), &["profile-tag".to_string()]);
     }
 
     #[test]
     fn test_apply_profile_does_not_overwrite_explicit_fields() {
         use crate::UploadProfile;
-        let profile: UploadProfile = toml::from_str(r#"
+        let profile: UploadProfile = toml::from_str(r##"
 visibility = "public"
 category = "20"
 made_for_kids = true
 tags = ["profile"]
-"#").unwrap();
+"##).unwrap();
 
         let video = VideoUpload::new("/tmp/v.mp4", "Title")
             .with_visibility(Visibility::Private)
@@ -547,11 +546,9 @@ tags = ["profile"]
             .with_tags(vec!["my-tag".into()])
             .apply_profile(&profile);
 
-        // Explicit values win
         assert_eq!(video.visibility(), Visibility::Private);
         assert_eq!(video.category_id(), Some("28"));
         assert_eq!(video.made_for_kids(), Some(false));
-        // Tags are merged: profile ["profile"] + video ["my-tag"] -> sorted deduped
         assert!(video.tags().contains(&"my-tag".to_string()));
         assert!(video.tags().contains(&"profile".to_string()));
     }
@@ -559,29 +556,26 @@ tags = ["profile"]
     #[test]
     fn test_apply_profile_tags_merge_dedup() {
         use crate::UploadProfile;
-        let profile: UploadProfile = toml::from_str(r#"
+        let profile: UploadProfile = toml::from_str(r##"
 tags = ["rust", "programming"]
-"#").unwrap();
+"##).unwrap();
 
         let video = VideoUpload::new("/tmp/v.mp4", "T")
             .with_tags(vec!["programming".into(), "tutorial".into()])
             .apply_profile(&profile);
 
         let tags = video.tags();
-        // "programming" appears once (dedup), "rust" from profile, "tutorial" from video
         assert!(tags.contains(&"rust".to_string()));
         assert!(tags.contains(&"programming".to_string()));
         assert!(tags.contains(&"tutorial".to_string()));
-        // No duplicates
-        let count = tags.iter().filter(|t| t == "programming").count();
+        let count = tags.iter().filter(|t| *t == "programming").count();
         assert_eq!(count, 1);
     }
 
     #[test]
     fn test_apply_profile_default_visibility_is_overridden() {
         use crate::UploadProfile;
-        // When video.visibility is the default (Private), profile can override
-        let profile: UploadProfile = toml::from_str(r#"visibility = "public""#).unwrap();
+        let profile: UploadProfile = toml::from_str(r##"visibility = "public""##).unwrap();
         let video = VideoUpload::new("/tmp/v.mp4", "T").apply_profile(&profile);
         assert_eq!(video.visibility(), Visibility::Public);
     }
