@@ -8,6 +8,9 @@
 
 **/.freeze
 **/dracon-sync-incidents.jsonl
+*.jsonl
+*.kra
+*.kra~
 *.log
 .DS_Store
 .direnv/
@@ -16,10 +19,22 @@
 .git/
 .venv/
 __pycache__/
+background_results.jsonl
+booking.json
 build/
+chat_history.json
+decision_ledger.json
 dist/
+fleet.db
+global_recipes.json
+locks/
 node_modules/
+rag_index.json
+repo-runtime/
+repo-scanner/
+state/
 target/
+tasks*.json
 !*.env
 !.env
 !.env.*
@@ -41,6 +56,7 @@ target/
 !.dracon/data/
 !.dracon/data/keys/
 !.dracon/data/keys/*.pub
+!.dracon/keys/*.pub
 !Cargo.lock
 !Cargo.toml
 !clippy.toml
