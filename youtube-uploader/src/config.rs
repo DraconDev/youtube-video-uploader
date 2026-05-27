@@ -871,3 +871,93 @@ mod tests {
         assert_ne!(pbkdf2_key.as_slice(), legacy_key.as_slice());
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAINTEXT CREDENTIAL STORE (no encryption, for personal use)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PLAINTEXT_MAGIC: &[u8] = b"VU-PLAIN";
+const PLAINTEXT_VERSION: u8 = 0x01;
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct CredentialStorePlain {
+    pub default_workspace: Option<String>,
+    pub workspaces: HashMap<String, PlatformCredentials>,
+}
+
+impl CredentialStorePlain {
+    /// Path for plaintext credentials (separate from encrypted)
+    fn path() -> Result<PathBuf, UploadError> {
+        dirs::config_dir()
+            .ok_or_else(|| UploadError::Config("No config directory found".into()))
+            .map(|d| d.join("youtube-uploader/credentials.plain.json"))
+    }
+
+    /// Load plaintext credentials (no passphrase needed)
+    pub fn load() -> Result<Self, UploadError> {
+        let path = Self::path()?;
+        if !path.exists() {
+            return Ok(Self::default());
+        }
+        let content = std::fs::read_to_string(&path).map_err(UploadError::Io)?;
+        serde_json::from_str(&content).map_err(|e| UploadError::Config(format!("Invalid JSON: {}", e)))
+    }
+
+    /// Save plaintext credentials (no encryption)
+    pub fn save(&self) -> Result<(), UploadError> {
+        let path = Self::path()?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(UploadError::Io)?;
+        }
+        let content = serde_json::to_string_pretty(self).map_err(|e| UploadError::Config(format!("Serialize failed: {}", e)))?;
+        std::fs::write(&path, content).map_err(UploadError::Io)
+    }
+
+    pub fn get(&self, name: &str) -> Option<&PlatformCredentials> {
+        self.workspaces.get(name)
+    }
+
+    pub fn set(&mut self, name: impl Into<String>, creds: PlatformCredentials) {
+        self.workspaces.insert(name.into(), creds);
+    }
+
+    pub fn default_workspace(&self) -> Option<&str> {
+        self.default_workspace.as_deref()
+    }
+
+    pub fn set_default(&mut self, name: &str) {
+        self.default_workspace = Some(name.to_string());
+    }
+
+    pub fn workspaces(&self) -> impl Iterator<Item = &String> {
+        self.workspaces.keys()
+    }
+}
+
+/// Load credentials with auto-detect (encrypted first, then plaintext)
+///
+/// Returns (store, format) tuple.
+pub fn load_credentials(passphrase: Option<&str>) -> Result<(CredentialStore, bool), UploadError> {
+    // Try encrypted first
+    if let Some(pass) = passphrase {
+        match CredentialStore::load(pass) {
+            Ok(store) => return Ok((store, true)),
+            Err(UploadError::Encryption(_)) => {}, // Try plaintext
+            Err(e) => return Err(e), // Other errors propagate
+        }
+    }
+
+    // Try plaintext (no passphrase needed)
+    match CredentialStorePlain::load() {
+        Ok(plain) => {
+            // Convert to encrypted format in memory (don't persist unless save is called)
+            let store = CredentialStore {
+                default_workspace: plain.default_workspace,
+                workspaces: plain.workspaces,
+            };
+            Ok((store, false))
+        }
+        Err(e) => Err(e)
+    }
+}
+
