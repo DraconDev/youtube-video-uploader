@@ -1,24 +1,30 @@
-# Contributing to youtube-uploader
+# Contributing to Dracon Projects
 
-Thank you for your interest in contributing! Here are the guidelines:
-
-## Getting Started
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Make your changes
-4. Ensure all tests pass (`cargo test --workspace --features test-utils`)
-5. Ensure clippy is clean (`cargo clippy --workspace --features test-utils -- -D warnings`)
-6. Submit a pull request
-
-## Code Standards
-
-- **Zero clippy warnings** — CI enforces `-D warnings`
-- **All tests must pass** — 213+ tests across the workspace
-- **No inline TODOs** — Track all TODOs in `GUIDE.md` roadmap section
-- **Default visibility = Private** — Never change this without explicit intent
-- **Pretty-print via `output.rs`** — All user-facing output goes through the output module
+Thank you for your interest in contributing to Dracon projects.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](./LICENSE).
+All contributions are subject to the terms of the [AGPLv3 license](./LICENSE).
+
+**By submitting a Contribution, you agree that your work will be licensed under AGPLv3.**
+
+## Before You Submit a Pull Request
+
+1. **Fork and branch** — Create a feature branch from `main` for your changes.
+2. **Write clean, idiomatic code** — Follow the existing style and conventions of the project.
+3. **Test your changes** — Ensure all existing and new tests pass before opening a PR.
+4. **Describe your changes** — Include a clear PR description explaining *what* changed and *why*.
+5. **Keep scope small** — One PR per logical change. Don't bundle unrelated fixes.
+
+## Code of Conduct
+
+All contributors are expected to behave professionally and respectfully. We do not tolerate harassment, discrimination, or hostile behavior in any form.
+
+## Getting Help
+
+If you have questions or need guidance, open an issue or reach out to the maintainers directly.
+
+## Legal Notes
+
+- You must have the right to submit the work you are contributing.
+- All contributions will be licensed under AGPLv3.
