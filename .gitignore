@@ -8,10 +8,16 @@
 
 **/.freeze
 **/dracon-sync-incidents.jsonl
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
 *.jsonl
 *.kra
 *.kra~
 *.log
+*.sqlite
+*.sqlite3
 .DS_Store
 .direnv/
 .dracon/*
